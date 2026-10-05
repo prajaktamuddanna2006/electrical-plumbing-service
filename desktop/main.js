@@ -10,7 +10,7 @@ function createWindow() {
         }
     });
 
-   win.loadURL("http://localhost:5174");
+   win.loadURL("http://localhost:5175");
 }
 
 app.whenReady().then(() => {

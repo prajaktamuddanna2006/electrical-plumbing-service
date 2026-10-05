@@ -1,10 +1,11 @@
 import { useState } from "react";
 
 function App() {
+  const [loggedIn, setLoggedIn] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
 
     if (!email || !password) {
@@ -12,16 +13,151 @@ function App() {
       return;
     }
 
-    alert("Login button clicked");
+    try {
+      const response = await fetch(
+        "http://localhost:5000/api/auth/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email,
+            password,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || "Login failed");
+        return;
+      }
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      alert("Login successful!");
+
+      setLoggedIn(true);
+    } catch (error) {
+      alert("Unable to connect to server");
+    }
   };
 
+  // DASHBOARD
+  if (loggedIn) {
+    return (
+      <div style={styles.dashboard}>
+
+        <div style={styles.header}>
+          <h1>Electrical & Plumbing</h1>
+          <p>Home Service Management System</p>
+        </div>
+
+        <h2 style={styles.heading}>
+          Dashboard
+        </h2>
+
+        <div style={styles.welcomeBox}>
+          <h2>Welcome to Electrical & Plumbing Home Service</h2>
+          <p>
+            Manage customers, technicians, service requests and
+            other services from one place.
+          </p>
+        </div>
+
+        <div style={styles.grid}>
+
+          <div style={styles.box}>
+            <div style={styles.icon}>👥</div>
+            <h3>Customers</h3>
+            <p>Manage customers</p>
+          </div>
+
+          <div style={styles.box}>
+            <div style={styles.icon}>🔧</div>
+            <h3>Technicians</h3>
+            <p>Manage technicians</p>
+          </div>
+
+          <div style={styles.box}>
+            <div style={styles.icon}>📋</div>
+            <h3>Service Requests</h3>
+            <p>View service requests</p>
+          </div>
+
+          <div style={styles.box}>
+            <div style={styles.icon}>🧰</div>
+            <h3>Assign Jobs</h3>
+            <p>Assign jobs to technicians</p>
+          </div>
+
+          <div style={styles.box}>
+            <div style={styles.icon}>📝</div>
+            <h3>Estimates</h3>
+            <p>Manage estimates</p>
+          </div>
+
+          <div style={styles.box}>
+            <div style={styles.icon}>🛠️</div>
+            <h3>Work Orders</h3>
+            <p>Manage work orders</p>
+          </div>
+
+          <div style={styles.box}>
+            <div style={styles.icon}>💰</div>
+            <h3>Bills & Payments</h3>
+            <p>Manage payments</p>
+          </div>
+
+          <div style={styles.box}>
+            <div style={styles.icon}>🔔</div>
+            <h3>Notifications</h3>
+            <p>View notifications</p>
+          </div>
+
+          <div style={styles.box}>
+            <div style={styles.icon}>📊</div>
+            <h3>Reports</h3>
+            <p>View reports</p>
+          </div>
+
+          <div style={styles.box}>
+            <div style={styles.icon}>📜</div>
+            <h3>Service History</h3>
+            <p>View completed services</p>
+          </div>
+
+        </div>
+
+        <button
+          style={styles.logout}
+          onClick={() => {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            setLoggedIn(false);
+          }}
+        >
+          Logout
+        </button>
+
+      </div>
+    );
+  }
+
+  // LOGIN PAGE
   return (
     <div style={styles.page}>
+
       <div style={styles.card}>
 
-        <div style={styles.icon}>⚡ 🔧</div>
+        <div style={styles.bigIcon}>
+          ⚡ 🔧
+        </div>
 
-        <h1 style={styles.title}>
+        <h1>
           Electrical & Plumbing
         </h1>
 
@@ -61,7 +197,7 @@ function App() {
 
           <button
             type="submit"
-            style={styles.button}
+            style={styles.loginButton}
           >
             Login
           </button>
@@ -73,11 +209,13 @@ function App() {
         </p>
 
       </div>
+
     </div>
   );
 }
 
 const styles = {
+
   page: {
     minHeight: "100vh",
     display: "flex",
@@ -96,19 +234,12 @@ const styles = {
     textAlign: "center",
   },
 
-  icon: {
+  bigIcon: {
     fontSize: "45px",
     marginBottom: "10px",
   },
 
-  title: {
-    margin: "0",
-    fontSize: "27px",
-  },
-
   subtitle: {
-    margin: "5px 0 20px",
-    fontSize: "21px",
     fontWeight: "normal",
   },
 
@@ -134,7 +265,7 @@ const styles = {
     boxSizing: "border-box",
   },
 
-  button: {
+  loginButton: {
     width: "100%",
     padding: "13px",
     border: "none",
@@ -149,6 +280,63 @@ const styles = {
     marginTop: "25px",
     fontSize: "12px",
     color: "#888",
+  },
+
+  dashboard: {
+    minHeight: "100vh",
+    padding: "35px",
+    background: "#f2f4f7",
+    fontFamily: "Arial, sans-serif",
+  },
+
+  header: {
+    background: "#222",
+    color: "white",
+    padding: "25px",
+    borderRadius: "12px",
+    marginBottom: "25px",
+  },
+
+  heading: {
+    fontSize: "30px",
+    marginBottom: "20px",
+  },
+
+  welcomeBox: {
+    background: "white",
+    padding: "25px",
+    borderRadius: "12px",
+    marginBottom: "25px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+  },
+
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: "20px",
+  },
+
+  box: {
+    background: "white",
+    padding: "25px",
+    borderRadius: "12px",
+    textAlign: "center",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+  },
+
+  icon: {
+    fontSize: "38px",
+  },
+
+  logout: {
+    marginTop: "30px",
+    padding: "12px 30px",
+    background: "#c62828",
+    color: "white",
+    border: "none",
+    borderRadius: "7px",
+    cursor: "pointer",
+    fontSize: "16px",
   },
 };
 
