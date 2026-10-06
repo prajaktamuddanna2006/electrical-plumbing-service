@@ -3,20 +3,25 @@ const ServiceRequest = require("../models/ServiceRequest");
 // Create Service Request
 const createServiceRequest = async (req, res) => {
   try {
-    const { problem, category, preferredTime, location } = req.body;
+    const {
+      serviceType,
+      description,
+      address,
+      preferredDate
+    } = req.body;
 
-    if (!problem || !category || !preferredTime || !location) {
+    if (!serviceType || !description || !address) {
       return res.status(400).json({
-        message: "All service request fields are required"
+        message: "Please fill all required fields"
       });
     }
 
     const serviceRequest = await ServiceRequest.create({
       customer: req.user.id,
-      problem,
-      category,
-      preferredTime,
-      location
+      serviceType,
+      description,
+      address,
+      preferredDate
     });
 
     res.status(201).json({

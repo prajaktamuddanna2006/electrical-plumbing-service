@@ -1,15 +1,20 @@
 const express = require("express");
 
-const {
-  createServiceRequest,
-  getServiceRequests
-} = require("../controllers/serviceRequestController");
-
-const protect = require("../middleware/authMiddleware");
-
 const router = express.Router();
 
-router.post("/", protect, createServiceRequest);
-router.get("/", protect, getServiceRequests);
+console.log("SERVICE REQUEST ROUTES LOADED");
+
+router.get("/", (req, res) => {
+  res.json({
+    message: "Service request route is working"
+  });
+});
+
+router.post("/", (req, res) => {
+  res.json({
+    message: "Service request POST route is working"
+  });
+});
 
 module.exports = router;
+

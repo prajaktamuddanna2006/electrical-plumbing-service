@@ -5,39 +5,52 @@ const serviceRequestSchema = new mongoose.Schema(
     customer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true
+      required: true,
     },
 
-    problem: {
+    serviceType: {
+      type: String,
+      enum: ["electrical", "plumbing"],
+      required: true,
+    },
+
+    description: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
 
-    category: {
+    address: {
       type: String,
-      enum: ["Electrical", "Plumbing", "Appliance"],
-      required: true
-    },
-
-    preferredTime: {
-      type: String,
-      required: true
-    },
-
-    location: {
-      type: String,
-      required: true
+      required: true,
     },
 
     status: {
       type: String,
-      enum: ["Pending", "Assigned", "In Progress", "Completed", "Cancelled"],
-      default: "Pending"
-    }
+      enum: [
+        "pending",
+        "assigned",
+        "inspection",
+        "approved",
+        "in-progress",
+        "completed",
+        "cancelled",
+      ],
+      default: "pending",
+    },
+
+    preferredDate: {
+      type: Date,
+    },
+
+    assignedTechnician: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 
