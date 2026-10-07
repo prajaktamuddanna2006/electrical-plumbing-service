@@ -6,6 +6,8 @@ const connectDB = require("./db");
 
 const authRoutes = require("./routes/authRoutes");
 const serviceRequestRoutes = require("./routes/serviceRequestRoutes");
+const technicianRoutes = require("./routes/technicianRoutes");
+const assignmentRoutes = require("./routes/assignmentRoutes");
 
 const protect = require("./middleware/authMiddleware");
 
@@ -21,6 +23,8 @@ app.use(express.json());
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/service-requests", serviceRequestRoutes);
+app.use("/api/technicians", technicianRoutes);
+app.use("/api/assignments", assignmentRoutes);
 
 // Home route
 app.get("/", (req, res) => {
