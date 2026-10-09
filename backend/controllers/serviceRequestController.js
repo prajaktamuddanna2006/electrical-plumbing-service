@@ -2,106 +2,135 @@ const ServiceRequest = require("../models/ServiceRequest");
 
 // Create Service Request
 const createServiceRequest = async (req, res) => {
-  try {
-    const {
-      serviceType,
-      description,
-      address,
-      preferredDate
-    } = req.body;
+try {
+const { serviceType, description, address, preferredDate } = req.body;
 
-    if (!serviceType || !description || !address) {
-      return res.status(400).json({
-        message: "Please fill all required fields"
-      });
-    }
+```
+if (!serviceType || !description || !address) {
+  return res.status(400).json({
+    message: "Please provide service type, description and address",
+  });
+}
 
-    const serviceRequest = await ServiceRequest.create({
-      customer: req.user.id,
-      serviceType,
-      description,
-      address,
-      preferredDate
-    });
+if (!["electrical", "plumbing"].includes(serviceType)) {
+  return res.status(400).json({
+    message: "Service type must be electrical or plumbing",
+  });
+}
 
-    res.status(201).json({
-      message: "Service request created successfully",
-      serviceRequest
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Failed to create service request",
-      error: error.message
-    });
-  }
+const request = await ServiceRequest.create({
+  customer: req.user.id,
+  serviceType,
+  description,
+  address,
+  preferredDate: preferredDate || undefined,
+});
+
+return res.status(201).json({
+  message: "Service Request successfully submitted",
+  request,
+});
+```
+
+} catch (error) {
+console.error("Create service request error:", error.message);
+return res.status(500).json({
+message: "Failed to create service request",
+});
+}
 };
 
-// Get All Service Requests
+// Get Service Requests
 const getServiceRequests = async (req, res) => {
-  try {
-    const requests = await ServiceRequest.find()
-      .populate("customer", "name email")
-      .populate("assignedTechnician", "name email")
-      .sort({ createdAt: -1 });
+try {
+let filter = {};
 
-    res.json(requests);
-  } catch (error) {
-    res.status(500).json({
-      message: "Failed to fetch service requests",
-      error: error.message
-    });
-  }
+```
+if (req.user.role === "customer") {
+  filter.customer = req.user.id;
+} else if (req.user.role === "technician") {
+  filter.assignedTechnician = req.user.id;
+}
+
+const requests = await ServiceRequest.find(filter)
+  .populate("customer", "name email phone")
+  .populate("assignedTechnician", "name email phone")
+  .sort({ createdAt: -1 });
+
+return res.json({ requests });
+```
+
+} catch (error) {
+console.error("Get service requests error:", error.message);
+return res.status(500).json({
+message: "Failed to get service requests",
+});
+}
 };
 
 // Update Service Request Status
 const updateServiceRequestStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
+try {
+if (!["admin", "technician"].includes(req.user.role)) {
+return res.status(403).json({
+message: "Not authorized to update service request status",
+});
+}
 
-    const allowedStatuses = [
-      "pending",
-      "assigned",
-      "inspection",
-      "approved",
-      "in-progress",
-      "completed",
-      "cancelled"
-    ];
+```
+const { status } = req.body;
+const allowedStatuses = [
+  "pending",
+  "assigned",
+  "inspection",
+  "approved",
+  "in-progress",
+  "completed",
+  "cancelled",
+];
 
-    if (!allowedStatuses.includes(status)) {
-      return res.status(400).json({
-        message: "Invalid status"
-      });
-    }
+if (!allowedStatuses.includes(status)) {
+  return res.status(400).json({
+    message: "Invalid service request status",
+  });
+}
 
-    const serviceRequest = await ServiceRequest.findById(
-      req.params.id
-    );
+const request = await ServiceRequest.findById(req.params.id);
 
-    if (!serviceRequest) {
-      return res.status(404).json({
-        message: "Service request not found"
-      });
-    }
+if (!request) {
+  return res.status(404).json({
+    message: "Service request not found",
+  });
+}
 
-    serviceRequest.status = status;
+if (
+  req.user.role === "technician" &&
+  String(request.assignedTechnician) !== String(req.user.id)
+) {
+  return res.status(403).json({
+    message: "This request is not assigned to you",
+  });
+}
 
-    await serviceRequest.save();
+request.status = status;
+await request.save();
 
-    res.json({
-      message: "Service request status updated successfully",
-      serviceRequest
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Failed to update service request status",
-      error: error.message
-    });
-  }
+return res.json({
+  message: "Service request status updated successfully",
+  request,
+});
+```
+
+} catch (error) {
+console.error("Update service request error:", error.message);
+return res.status(500).json({
+message: "Failed to update service request status",
+});
+}
 };
 
 module.exports = {
-  createServiceRequest,
-  getServiceRequests,
-  updateServiceRequestStatus
+createServiceRequest,
+getServiceRequests,
+updateServiceRequestStatus,
 };

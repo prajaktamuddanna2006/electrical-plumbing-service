@@ -9,6 +9,7 @@ const serviceRequestRoutes = require("./routes/serviceRequestRoutes");
 const technicianRoutes = require("./routes/technicianRoutes");
 const assignmentRoutes = require("./routes/assignmentRoutes");
 
+
 const protect = require("./middleware/authMiddleware");
 
 const app = express();
