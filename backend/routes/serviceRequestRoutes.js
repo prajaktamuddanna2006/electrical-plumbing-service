@@ -15,7 +15,7 @@ console.log("SERVICE REQUEST ROUTES LOADED");
 // Create Service Request
 router.post("/", protect, createServiceRequest);
 
-// Get All Service Requests
+// Get Service Requests
 router.get("/", protect, getServiceRequests);
 
 // Update Service Request Status

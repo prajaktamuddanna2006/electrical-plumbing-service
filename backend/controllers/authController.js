@@ -1,8 +1,8 @@
-```javascript
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
+// Register Customer
 const registerUser = async (req, res) => {
   try {
     const { name, email, phone, password, role, address } = req.body;
@@ -20,8 +20,16 @@ const registerUser = async (req, res) => {
     });
 
     if (existingUser) {
-      return res.status(400).json({
+      return res.status(409).json({
         message: "User already exists. Please login.",
+      });
+    }
+
+    const selectedRole = role || "customer";
+
+    if (selectedRole !== "customer") {
+      return res.status(403).json({
+        message: "Public registration is only available for customers",
       });
     }
 
@@ -32,7 +40,7 @@ const registerUser = async (req, res) => {
       email: normalizedEmail,
       phone: phone.trim(),
       password: hashedPassword,
-      role: role || "customer",
+      role: "customer",
       address: address ? address.trim() : "",
     });
 
@@ -48,48 +56,63 @@ const registerUser = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Register error:", error);
+    console.error("Register error:", error.message);
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        message: "Email already exists. Please login.",
+      });
+    }
+
     return res.status(500).json({
       message: "Server error during registration",
     });
   }
 };
 
+// Login Customer or Registered Technician
 const loginUser = async (req, res) => {
-  console.log("LOGIN STEP 1: Request received");
-
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    if (
+      typeof email !== "string" ||
+      typeof password !== "string" ||
+      !email.trim() ||
+      !password
+    ) {
       return res.status(400).json({
         message: "Please enter email and password",
       });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    console.log("LOGIN STEP 2: Email normalized");
 
     const user = await User.findOne({
       email: normalizedEmail,
     });
-    console.log("LOGIN STEP 3: Database query completed");
 
     if (!user) {
+      console.log("Login failed: account not found");
       return res.status(401).json({
         message: "Invalid email or password",
       });
     }
 
-    console.log("LOGIN STEP 4: User found");
+    if (!user.password) {
+      console.error("Login failed: password is not stored correctly");
+      return res.status(500).json({
+        message: "Account password data needs to be repaired",
+      });
+    }
 
     const isPasswordMatch = await bcrypt.compare(
       password,
       user.password
     );
-    console.log("LOGIN STEP 5: Password checked");
 
     if (!isPasswordMatch) {
+      console.log("Login failed: password did not match");
       return res.status(401).json({
         message: "Invalid email or password",
       });
@@ -113,9 +136,9 @@ const loginUser = async (req, res) => {
       }
     );
 
-    console.log("LOGIN STEP 6: Token created");
+    console.log("Login successful for role:", user.role);
 
-    return res.json({
+    return res.status(200).json({
       message: "Login successful",
       token,
       user: {
@@ -128,7 +151,8 @@ const loginUser = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Login error:", error);
+    console.error("Login error:", error.message);
+
     return res.status(500).json({
       message: "Server error during login",
     });
@@ -139,4 +163,3 @@ module.exports = {
   registerUser,
   loginUser,
 };
-```
