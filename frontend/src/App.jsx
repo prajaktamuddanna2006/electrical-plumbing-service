@@ -1,4 +1,4 @@
-                   
+
 import { useState } from "react";
 import "./App.css";
 
@@ -13,8 +13,9 @@ function App() {
   const [address, setAddress] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [updatingRequestId, setUpdatingRequestId] = useState("");
   const [requests, setRequests] = useState([]);
+  const [technicians, setTechnicians] = useState([]);
+  const [updatingRequestId, setUpdatingRequestId] = useState("");
 
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -37,24 +38,33 @@ function App() {
     setMessage("");
   }
 
-  async function loadRequests(authToken = token()) {
-    if (!authToken) {
-      setMessage("Please login to view service requests.");
-      return false;
+  async function apiRequest(url, options = {}) {
+    const response = await fetch(url, options);
+    const text = await response.text();
+
+    let data = {};
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = { message: text || "Invalid server response." };
     }
 
-    try {
-      const response = await fetch(`${API}/service-requests`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      });
+    return { response, data };
+  }
 
-      const data = await response.json();
+  async function loadRequests(authToken = token()) {
+    if (!authToken) return false;
+
+    try {
+      const { response, data } = await apiRequest(
+        `${API}/service-requests`,
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
 
       if (!response.ok) {
-        setMessage(data.message || "Could not load service requests.");
+        setMessage(data.message || `Could not load requests (${response.status}).`);
         return false;
       }
 
@@ -68,7 +78,35 @@ function App() {
       return true;
     } catch (error) {
       console.error("Load requests error:", error);
-      setMessage("Server connection failed. Please check the backend.");
+      setMessage("Could not connect to backend while loading requests.");
+      return false;
+    }
+  }
+
+  async function loadTechnicians(authToken = token()) {
+    if (!authToken) return false;
+
+    try {
+      const { response, data } = await apiRequest(`${API}/technicians`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+
+      if (!response.ok) {
+        setMessage(data.message || `Could not load technicians (${response.status}).`);
+        return false;
+      }
+
+      setTechnicians(
+        Array.isArray(data)
+          ? data
+          : Array.isArray(data.technicians)
+            ? data.technicians
+            : []
+      );
+      return true;
+    } catch (error) {
+      console.error("Load technicians error:", error);
+      setMessage("Could not connect to backend while loading technicians.");
       return false;
     }
   }
@@ -79,40 +117,46 @@ function App() {
     setMessage("");
 
     try {
-      const response = await fetch(`${API}/auth/login`, {
+      const { response, data } = await apiRequest(`${API}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        setMessage(data.message || "Invalid email or password.");
+        setMessage(data.message || `Login failed (${response.status}).`);
         return;
       }
 
       if (!data.token || !data.user) {
         setMessage("Login response is missing user information.");
+        console.error("Unexpected login response:", data);
         return;
       }
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
-
       setCurrentUser(data.user);
       setPassword("");
 
-      setPage(
-        data.user.role === "technician"
-          ? "technician-dashboard"
-          : "dashboard"
-      );
+      if (data.user.role === "admin") {
+        setPage("admin-dashboard");
+      } else if (data.user.role === "technician") {
+        setPage("technician-dashboard");
+      } else {
+        setPage("dashboard");
+      }
 
       await loadRequests(data.token);
+
+      if (data.user.role === "admin") {
+        await loadTechnicians(data.token);
+      }
     } catch (error) {
       console.error("Login error:", error);
-      setMessage("Server connection failed. Please check the backend.");
+      setMessage(
+        "Cannot connect to backend. Check that the backend is running on port 5000."
+      );
     } finally {
       setLoading(false);
     }
@@ -124,23 +168,21 @@ function App() {
     setMessage("");
 
     try {
-      const response = await fetch(`${API}/auth/register`, {
+      const { response, data } = await apiRequest(`${API}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name,
-          email,
-          phone,
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
           password,
-          address,
+          address: address.trim(),
           role: "customer",
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        setMessage(data.message || "Registration failed.");
+        setMessage(data.message || `Registration failed (${response.status}).`);
         return;
       }
 
@@ -152,7 +194,7 @@ function App() {
       setAddress("");
     } catch (error) {
       console.error("Registration error:", error);
-      setMessage("Server connection failed. Please check the backend.");
+      setMessage("Cannot connect to backend. Check that the backend is running.");
     } finally {
       setLoading(false);
     }
@@ -164,7 +206,7 @@ function App() {
     setMessage("");
 
     try {
-      const response = await fetch(`${API}/service-requests`, {
+      const { response, data } = await apiRequest(`${API}/service-requests`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -172,17 +214,15 @@ function App() {
         },
         body: JSON.stringify({
           serviceType,
-          description,
-          address: serviceAddress,
+          description: description.trim(),
+          address: serviceAddress.trim(),
           preferredDate: preferredDate || undefined,
           preferredTime: preferredTime || undefined,
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        setMessage(data.message || "Could not submit service request.");
+        setMessage(data.message || `Request failed (${response.status}).`);
         return;
       }
 
@@ -191,11 +231,10 @@ function App() {
       setPreferredDate("");
       setPreferredTime("");
       setServiceAddress("");
-
       await loadRequests();
     } catch (error) {
       console.error("Service request error:", error);
-      setMessage("Server connection failed. Please check the backend.");
+      setMessage("Could not connect to backend.");
     } finally {
       setLoading(false);
     }
@@ -203,9 +242,8 @@ function App() {
 
   async function updateRequestStatus(requestId, status) {
     const authToken = token();
-
     if (!authToken) {
-      setMessage("Your session has expired. Please login again.");
+      setMessage("Please login again.");
       return;
     }
 
@@ -213,7 +251,7 @@ function App() {
     setMessage("");
 
     try {
-      const response = await fetch(
+      const { response, data } = await apiRequest(
         `${API}/service-requests/${requestId}`,
         {
           method: "PUT",
@@ -225,42 +263,38 @@ function App() {
         }
       );
 
-      const data = await response.json();
-
       if (!response.ok) {
-        console.error("Status update rejected:", response.status, data);
-        setMessage(
-          data.message || `Status update failed (${response.status}).`
-        );
+        setMessage(data.message || `Status update failed (${response.status}).`);
         return;
       }
 
-      if (!data.request) {
-        setMessage(
-          data.message || "Updated, but the server did not return the request."
-        );
-        await loadRequests();
-        return;
-      }
-
-      // Update the selected request immediately in the UI.
-      setRequests((previousRequests) =>
-        previousRequests.map((request) =>
-          request._id === requestId
-            ? { ...request, ...data.request }
-            : request
-        )
-      );
-
-      setMessage(data.message || "Request status updated successfully!");
-
-      // Reload from the database to confirm the latest status.
+      setMessage(data.message || "Request status updated.");
       await loadRequests(authToken);
     } catch (error) {
       console.error("Status update error:", error);
-      setMessage("Could not connect to the server. Check the backend.");
+      setMessage("Could not connect to backend.");
     } finally {
       setUpdatingRequestId("");
+    }
+  }
+
+  async function refreshDashboard() {
+    setLoading(true);
+    setMessage("");
+
+    try {
+      const requestsLoaded = await loadRequests();
+      let techniciansLoaded = true;
+
+      if (currentUser?.role === "admin") {
+        techniciansLoaded = await loadTechnicians();
+      }
+
+      if (requestsLoaded && techniciansLoaded) {
+        setMessage("Dashboard refreshed successfully.");
+      }
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -269,46 +303,63 @@ function App() {
     localStorage.removeItem("user");
     setCurrentUser(null);
     setRequests([]);
+    setTechnicians([]);
     setEmail("");
     setPassword("");
     setPage("home");
     setMessage("You have logged out.");
   }
 
+  function RequestCard({ request, showStatusEditor = false }) {
+    return (
+      <div className="history-row" key={request._id}>
+        <p><strong>Service:</strong> {request.serviceType}</p>
+        <p><strong>Description:</strong> {request.description}</p>
+        <p><strong>Customer:</strong> {request.customer?.name || "Customer"}</p>
+        <p><strong>Phone:</strong> {request.customer?.phone || "Not available"}</p>
+        <p><strong>Address:</strong> {request.address}</p>
+        <p><strong>Preferred Date:</strong> {request.preferredDate ? String(request.preferredDate).slice(0, 10) : "Not specified"}</p>
+        <p><strong>Technician:</strong> {request.assignedTechnician?.name || "Not assigned yet"}</p>
+        <p><strong>Status:</strong> {request.status}</p>
+
+        {showStatusEditor && (
+          <>
+            <label htmlFor={`status-${request._id}`}>Update Status</label>
+            <select
+              id={`status-${request._id}`}
+              value={request.status}
+              disabled={Boolean(updatingRequestId)}
+              onChange={(e) => updateRequestStatus(request._id, e.target.value)}
+            >
+              <option value="pending">Pending</option>
+              <option value="assigned">Assigned</option>
+              <option value="inspection">Inspection</option>
+              <option value="approved">Approved</option>
+              <option value="in-progress">In Progress</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            {updatingRequestId === request._id && <p>Updating status...</p>}
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <header className="header">
         <div className="logo">⚡ E&P Service</div>
-
         <nav className="nav">
-          <button type="button" onClick={() => goToPage("home")}>
-            Home
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              document
-                .getElementById("services")
-                ?.scrollIntoView({ behavior: "smooth" })
-            }
-          >
-            Services
-          </button>
-
-          {currentUser ? (
-            <button type="button" onClick={logout}>
-              Logout
-            </button>
-          ) : (
+          <button type="button" onClick={() => goToPage("home")}>Home</button>
+          {!currentUser && (
             <>
-              <button type="button" onClick={() => goToPage("login")}>
-                Login
-              </button>
-              <button type="button" onClick={() => goToPage("register")}>
-                Register
-              </button>
+              <button type="button" onClick={() => goToPage("login")}>Login</button>
+              <button type="button" onClick={() => goToPage("register")}>Register</button>
             </>
+          )}
+          {currentUser && (
+            <button type="button" onClick={logout}>Logout</button>
           )}
         </nav>
       </header>
@@ -319,25 +370,13 @@ function App() {
             <div className="hero-content">
               <span className="hero-tag">PROFESSIONAL HOME SERVICES</span>
               <h1>Electrical & Plumbing Services at Your Doorstep</h1>
-              <p>
-                Reliable home services from trusted professionals. Book your
-                electrical or plumbing service easily.
-              </p>
-              <button
-                type="button"
-                className="hero-button"
-                onClick={() => goToPage("register")}
-              >
-                Get Started
-              </button>
+              <p>Reliable home services from trusted professionals. Book your electrical or plumbing service easily.</p>
+              <button className="hero-button" type="button" onClick={() => goToPage("register")}>Get Started</button>
             </div>
-
             <div className="hero-card">
               <div className="hero-card-icon">🏠</div>
               <h3>Trusted Home Service</h3>
-              <p>
-                Professional technicians and reliable service for your home.
-              </p>
+              <p>Professional technicians and reliable service for your home.</p>
             </div>
           </section>
 
@@ -347,53 +386,21 @@ function App() {
               <h2>Our Services</h2>
               <p>Complete home service solutions for your needs.</p>
             </div>
-
             <div className="service-grid">
               <div className="service-card">
                 <div className="service-icon">⚡</div>
                 <h3>Electrical Services</h3>
-                <p>
-                  Wiring, switch repair, fan installation and maintenance.
-                </p>
+                <p>Wiring, switch repair, fan installation and maintenance.</p>
               </div>
-
               <div className="service-card">
                 <div className="service-icon">🔧</div>
                 <h3>Plumbing Services</h3>
-                <p>
-                  Tap repair, pipe repair, leakage fixing and more.
-                </p>
+                <p>Tap repair, pipe repair, leakage fixing and more.</p>
               </div>
-
               <div className="service-card">
                 <div className="service-icon">🏠</div>
                 <h3>Home Maintenance</h3>
                 <p>Reliable maintenance services for your home.</p>
-              </div>
-            </div>
-          </section>
-
-          <section className="account-section">
-            <div className="account-content">
-              <span>GET STARTED</span>
-              <h2>Ready to Book a Service?</h2>
-              <p>Login or create an account to request a service.</p>
-
-              <div className="account-buttons">
-                <button
-                  type="button"
-                  className="hero-button"
-                  onClick={() => goToPage("login")}
-                >
-                  Login
-                </button>
-                <button
-                  type="button"
-                  className="hero-button"
-                  onClick={() => goToPage("register")}
-                >
-                  Register
-                </button>
               </div>
             </div>
           </section>
@@ -404,42 +411,14 @@ function App() {
         <section className="form-page">
           <form className="auth-form" onSubmit={handleLogin}>
             <h1>Login</h1>
-            <p>Customers and registered technicians can login here.</p>
-
+            <p>Customers, technicians and admins can login here.</p>
             <label htmlFor="login-email">Email</label>
-            <input
-              id="login-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your registered email"
-              autoComplete="email"
-              required
-            />
-
+            <input id="login-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
             <label htmlFor="login-password">Password</label>
-            <input
-              id="login-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              autoComplete="current-password"
-              required
-            />
-
-            <button type="submit" disabled={loading}>
-              {loading ? "Please wait..." : "Login"}
-            </button>
-
+            <input id="login-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+            <button type="submit" disabled={loading}>{loading ? "Please wait..." : "Login"}</button>
             {message && <p role="status">{message}</p>}
-
-            <p>
-              Don't have an account?{" "}
-              <button type="button" onClick={() => goToPage("register")}>
-                Register
-              </button>
-            </p>
+            <p>Don't have an account? <button type="button" onClick={() => goToPage("register")}>Register</button></p>
           </form>
         </section>
       )}
@@ -448,73 +427,19 @@ function App() {
         <section className="form-page">
           <form className="auth-form" onSubmit={handleRegister}>
             <h1>Create Customer Account</h1>
-
             <label htmlFor="register-name">Full Name</label>
-            <input
-              id="register-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your full name"
-              autoComplete="name"
-              required
-            />
-
+            <input id="register-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required />
             <label htmlFor="register-email">Email</label>
-            <input
-              id="register-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              autoComplete="email"
-              required
-            />
-
+            <input id="register-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
             <label htmlFor="register-phone">Phone</label>
-            <input
-              id="register-phone"
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="Enter your phone number"
-              autoComplete="tel"
-              required
-            />
-
+            <input id="register-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" required />
             <label htmlFor="register-password">Password</label>
-            <input
-              id="register-password"
-              type="password"
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Create a password (at least 6 characters)"
-              autoComplete="new-password"
-              required
-            />
-
+            <input id="register-password" type="password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required />
             <label htmlFor="register-address">Address</label>
-            <input
-              id="register-address"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Enter your address"
-              autoComplete="street-address"
-              required
-            />
-
-            <button type="submit" disabled={loading}>
-              {loading ? "Please wait..." : "Register"}
-            </button>
-
+            <input id="register-address" value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="street-address" required />
+            <button type="submit" disabled={loading}>{loading ? "Please wait..." : "Register"}</button>
             {message && <p role="status">{message}</p>}
-
-            <p>
-              Already registered?{" "}
-              <button type="button" onClick={() => goToPage("login")}>
-                Login
-              </button>
-            </p>
+            <p>Already registered? <button type="button" onClick={() => goToPage("login")}>Login</button></p>
           </form>
         </section>
       )}
@@ -522,137 +447,77 @@ function App() {
       {page === "dashboard" && (
         <main className="customer-dashboard">
           <div className="customer-topbar">
-            <div>
-              <span className="dashboard-label">CUSTOMER PORTAL</span>
-              <h1>Customer Dashboard</h1>
-              <p>Welcome, {currentUser?.name || "Customer"}!</p>
-            </div>
-            <button className="logout-button" onClick={logout} type="button">
-              Logout
-            </button>
+            <div><span className="dashboard-label">CUSTOMER PORTAL</span><h1>Customer Dashboard</h1><p>Welcome, {currentUser?.name || "Customer"}!</p></div>
+            <button className="logout-button" type="button" onClick={logout}>Logout</button>
           </div>
-
           <div className="dashboard-body">
             <div className="summary-grid">
-              <div className="summary-card">
-                <span>📋 My Requests</span>
-                <strong>{requests.length}</strong>
-              </div>
-
-              <div className="summary-card">
-                <span>🔧 Active Requests</span>
-                <strong>
-                  {
-                    requests.filter(
-                      (request) =>
-                        !["completed", "cancelled"].includes(request.status)
-                    ).length
-                  }
-                </strong>
-              </div>
-
-              <div className="summary-card">
-                <span>✅ Completed</span>
-                <strong>
-                  {
-                    requests.filter(
-                      (request) => request.status === "completed"
-                    ).length
-                  }
-                </strong>
-              </div>
+              <div className="summary-card"><span>📋 My Requests</span><strong>{requests.length}</strong></div>
+              <div className="summary-card"><span>🔧 Active Requests</span><strong>{requests.filter((r) => !["completed", "cancelled"].includes(r.status)).length}</strong></div>
+              <div className="summary-card"><span>✅ Completed</span><strong>{requests.filter((r) => r.status === "completed").length}</strong></div>
             </div>
-
             <div className="dashboard-main-grid">
               <div className="dashboard-panel">
-                <div className="panel-heading">
-                  <h2>Request Service</h2>
-                  <p>Book a new electrical or plumbing service.</p>
-                </div>
-
+                <h2>Request Service</h2>
                 <form className="request-form" onSubmit={handleServiceRequest}>
                   <label htmlFor="service-type">Service Type</label>
-                  <select
-                    id="service-type"
-                    value={serviceType}
-                    onChange={(e) => setServiceType(e.target.value)}
-                  >
+                  <select id="service-type" value={serviceType} onChange={(e) => setServiceType(e.target.value)}>
                     <option value="electrical">Electrical</option>
                     <option value="plumbing">Plumbing</option>
                   </select>
-
                   <label htmlFor="service-description">Description</label>
-                  <textarea
-                    id="service-description"
-                    rows="4"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Describe the problem"
-                    required
-                  />
-
+                  <textarea id="service-description" rows="4" value={description} onChange={(e) => setDescription(e.target.value)} required />
                   <label htmlFor="preferred-date">Preferred Date</label>
-                  <input
-                    id="preferred-date"
-                    type="date"
-                    value={preferredDate}
-                    onChange={(e) => setPreferredDate(e.target.value)}
-                  />
-
+                  <input id="preferred-date" type="date" value={preferredDate} onChange={(e) => setPreferredDate(e.target.value)} />
                   <label htmlFor="preferred-time">Preferred Time</label>
-                  <input
-                    id="preferred-time"
-                    type="time"
-                    value={preferredTime}
-                    onChange={(e) => setPreferredTime(e.target.value)}
-                  />
-
+                  <input id="preferred-time" type="time" value={preferredTime} onChange={(e) => setPreferredTime(e.target.value)} />
                   <label htmlFor="service-address">Service Address</label>
-                  <input
-                    id="service-address"
-                    value={serviceAddress}
-                    onChange={(e) => setServiceAddress(e.target.value)}
-                    placeholder="Where is the service needed?"
-                    required
-                  />
-
-                  <button type="submit" disabled={loading}>
-                    {loading ? "Submitting..." : "Submit Service Request"}
-                  </button>
+                  <input id="service-address" value={serviceAddress} onChange={(e) => setServiceAddress(e.target.value)} required />
+                  <button type="submit" disabled={loading}>{loading ? "Submitting..." : "Submit Service Request"}</button>
                 </form>
-
                 {message && <p role="status">{message}</p>}
               </div>
-
               <div className="dashboard-panel">
                 <h2>Service History</h2>
-
-                {requests.length === 0 ? (
-                  <p>No service requests found.</p>
-                ) : (
-                  requests.map((request) => (
-                    <div className="history-row" key={request._id}>
-                      <p>
-                        <strong>Service:</strong> {request.serviceType}
-                      </p>
-                      <p>
-                        <strong>Description:</strong> {request.description}
-                      </p>
-                      <p>
-                        <strong>Address:</strong> {request.address}
-                      </p>
-                      <p>
-                        <strong>Status:</strong> {request.status}
-                      </p>
-                      <p>
-                        <strong>Technician:</strong>{" "}
-                        {request.assignedTechnician?.name ||
-                          "Not assigned yet"}
-                      </p>
-                    </div>
-                  ))
-                )}
+                {requests.length === 0 ? <p>No service requests found.</p> : requests.map((request) => <RequestCard key={request._id} request={request} />)}
               </div>
+            </div>
+          </div>
+        </main>
+      )}
+
+      {page === "admin-dashboard" && (
+        <main className="customer-dashboard">
+          <div className="customer-topbar">
+            <div><span className="dashboard-label">ADMIN PORTAL</span><h1>Admin Dashboard</h1><p>Welcome, {currentUser?.name || "Admin"}!</p></div>
+            <button className="logout-button" type="button" onClick={logout}>Logout</button>
+          </div>
+          <div className="dashboard-body">
+            <div className="summary-grid">
+              <div className="summary-card"><span>📋 Total Requests</span><strong>{requests.length}</strong></div>
+              <div className="summary-card"><span>⏳ Pending Requests</span><strong>{requests.filter((r) => r.status === "pending").length}</strong></div>
+              <div className="summary-card"><span>✅ Completed</span><strong>{requests.filter((r) => r.status === "completed").length}</strong></div>
+              <div className="summary-card"><span>🔧 Technicians</span><strong>{technicians.length}</strong></div>
+            </div>
+            <div className="dashboard-panel">
+              <h2>Service Request Management</h2>
+              <button type="button" disabled={loading} onClick={refreshDashboard}>{loading ? "Refreshing..." : "Refresh Dashboard"}</button>
+              {message && <p role="status">{message}</p>}
+              {requests.length === 0 ? <p>No service requests found.</p> : requests.map((request) => <RequestCard key={request._id} request={request} showStatusEditor />)}
+            </div>
+            <div className="dashboard-panel">
+              <h2>Technician Management</h2>
+              {technicians.length === 0 ? <p>No technicians found.</p> : technicians.map((tech) => (
+                <div className="history-row" key={tech._id}>
+                  <p><strong>Name:</strong> {tech.user?.name || "Not available"}</p>
+                  <p><strong>Email:</strong> {tech.user?.email || "Not available"}</p>
+                  <p><strong>Phone:</strong> {tech.user?.phone || "Not available"}</p>
+                  <p><strong>Skills:</strong> {Array.isArray(tech.skills) ? tech.skills.join(", ") : "Not specified"}</p>
+                  <p><strong>Service Area:</strong> {tech.serviceArea || "Not specified"}</p>
+                  <p><strong>Availability:</strong> {tech.availability || "Not specified"}</p>
+                  <p><strong>Experience:</strong> {tech.experience ?? 0} years</p>
+                </div>
+              ))}
             </div>
           </div>
         </main>
@@ -661,124 +526,20 @@ function App() {
       {page === "technician-dashboard" && (
         <main className="customer-dashboard">
           <div className="customer-topbar">
-            <div>
-              <span className="dashboard-label">TECHNICIAN PORTAL</span>
-              <h1>Technician Dashboard</h1>
-              <p>Welcome, {currentUser?.name || "Technician"}!</p>
-            </div>
-
-            <button className="logout-button" onClick={logout} type="button">
-              Logout
-            </button>
+            <div><span className="dashboard-label">TECHNICIAN PORTAL</span><h1>Technician Dashboard</h1><p>Welcome, {currentUser?.name || "Technician"}!</p></div>
+            <button className="logout-button" type="button" onClick={logout}>Logout</button>
           </div>
-
           <div className="dashboard-body">
             <div className="summary-grid">
-              <div className="summary-card">
-                <span>📋 Assigned Requests</span>
-                <strong>{requests.length}</strong>
-              </div>
-
-              <div className="summary-card">
-                <span>🔧 In Progress</span>
-                <strong>
-                  {
-                    requests.filter(
-                      (request) => request.status === "in-progress"
-                    ).length
-                  }
-                </strong>
-              </div>
-
-              <div className="summary-card">
-                <span>✅ Completed</span>
-                <strong>
-                  {
-                    requests.filter(
-                      (request) => request.status === "completed"
-                    ).length
-                  }
-                </strong>
-              </div>
+              <div className="summary-card"><span>📋 Requests</span><strong>{requests.length}</strong></div>
+              <div className="summary-card"><span>🔧 In Progress</span><strong>{requests.filter((r) => r.status === "in-progress").length}</strong></div>
+              <div className="summary-card"><span>✅ Completed</span><strong>{requests.filter((r) => r.status === "completed").length}</strong></div>
             </div>
-
             <div className="dashboard-panel">
-              <h2>My Assigned Service Requests</h2>
-
+              <h2>Service Requests</h2>
+              <button type="button" disabled={loading} onClick={refreshDashboard}>{loading ? "Refreshing..." : "Refresh Requests"}</button>
               {message && <p role="status">{message}</p>}
-
-              <button
-                type="button"
-                disabled={loading || Boolean(updatingRequestId)}
-                onClick={async () => {
-                  setLoading(true);
-                  setMessage("");
-                  try {
-                    const success = await loadRequests();
-                    if (success) {
-                      setMessage("Service requests refreshed successfully.");
-                    }
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-              >
-                {loading ? "Refreshing..." : "Refresh Requests"}
-              </button>
-
-              {requests.length === 0 ? (
-                <p>No service requests are assigned to you yet.</p>
-              ) : (
-                requests.map((request) => (
-                  <div className="history-row" key={request._id}>
-                    <p>
-                      <strong>Service:</strong> {request.serviceType}
-                    </p>
-                    <p>
-                      <strong>Description:</strong> {request.description}
-                    </p>
-                    <p>
-                      <strong>Customer:</strong>{" "}
-                      {request.customer?.name || "Customer"}
-                    </p>
-                    <p>
-                      <strong>Phone:</strong>{" "}
-                      {request.customer?.phone || "Not available"}
-                    </p>
-                    <p>
-                      <strong>Address:</strong> {request.address}
-                    </p>
-                    <p>
-                      <strong>Current Status:</strong> {request.status}
-                    </p>
-
-                    <label htmlFor={`status-${request._id}`}>
-                      Update Request Status
-                    </label>
-
-                    <select
-                      id={`status-${request._id}`}
-                      value={request.status}
-                      disabled={Boolean(updatingRequestId)}
-                      onChange={(e) =>
-                        updateRequestStatus(request._id, e.target.value)
-                      }
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="assigned">Assigned</option>
-                      <option value="inspection">Inspection</option>
-                      <option value="approved">Approved</option>
-                      <option value="in-progress">In Progress</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
-
-                    {updatingRequestId === request._id && (
-                      <p role="status">Updating status...</p>
-                    )}
-                  </div>
-                ))
-              )}
+              {requests.length === 0 ? <p>No service requests found.</p> : requests.map((request) => <RequestCard key={request._id} request={request} showStatusEditor />)}
             </div>
           </div>
         </main>
