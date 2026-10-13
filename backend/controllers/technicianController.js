@@ -1,4 +1,6 @@
+
 const Technician = require("../models/Technician");
+const Assignment = require("../models/Assignment");
 
 // Create Technician
 const createTechnician = async (req, res) => {
@@ -53,7 +55,41 @@ const getTechnicians = async (req, res) => {
   }
 };
 
+// Get Active Jobs Assigned to Logged-in Technician
+const getMyAssignments = async (req, res) => {
+  try {
+    const assignments = await Assignment.find({
+      technician: req.user.id,
+      status: { $nin: ["completed", "cancelled"] }
+    })
+      .populate({
+        path: "serviceRequest",
+        match: { status: { $nin: ["completed", "cancelled"] } },
+        populate: {
+          path: "customer",
+          select: "name email phone"
+        }
+      })
+      .sort({ scheduledDate: 1 });
+
+    const activeAssignments = assignments.filter(
+      (assignment) => assignment.serviceRequest !== null
+    );
+
+    res.json({
+      count: activeAssignments.length,
+      assignments: activeAssignments
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch assigned jobs",
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   createTechnician,
-  getTechnicians
+  getTechnicians,
+  getMyAssignments
 };

@@ -1,348 +1,259 @@
-
 import { useState } from "react";
 import "./App.css";
 
 const API = "http://localhost:5000/api";
 
-function App() {
+export default function App() {
   const [page, setPage] = useState("home");
+  const [user, setUser] = useState(() =>
+    JSON.parse(localStorage.getItem("user") || "null")
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [requests, setRequests] = useState([]);
-  const [technicians, setTechnicians] = useState([]);
-  const [updatingRequestId, setUpdatingRequestId] = useState("");
-
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("user") || "null");
-    } catch {
-      return null;
-    }
-  });
-
   const [serviceType, setServiceType] = useState("plumbing");
   const [description, setDescription] = useState("");
-  const [preferredDate, setPreferredDate] = useState("");
-  const [preferredTime, setPreferredTime] = useState("");
-  const [serviceAddress, setServiceAddress] = useState("");
+  const [notes, setNotes] = useState({});
+  const [labor, setLabor] = useState({});
+  const [parts, setParts] = useState({});
+  const [requests, setRequests] = useState([]);
+  const [technicians, setTechnicians] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [estimates, setEstimates] = useState([]);
+  const [workOrders, setWorkOrders] = useState([]);
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const token = () => localStorage.getItem("token");
 
-  function goToPage(nextPage) {
-    setPage(nextPage);
-    setMessage("");
-  }
+  async function api(path, options = {}) {
+    const response = await fetch(API + path, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token() ? { Authorization: `Bearer ${token()}` } : {}),
+        ...options.headers,
+      },
+    });
 
-  async function apiRequest(url, options = {}) {
-    const response = await fetch(url, options);
-    const text = await response.text();
+    const data = await response.json().catch(() => ({}));
 
-    let data = {};
-    try {
-      data = text ? JSON.parse(text) : {};
-    } catch {
-      data = { message: text || "Invalid server response." };
+    if (!response.ok) {
+      throw new Error(data.message || "Request failed");
     }
 
-    return { response, data };
+    return data;
   }
 
-  async function loadRequests(authToken = token()) {
-    if (!authToken) return false;
-
+  async function refresh(role = user?.role) {
     try {
-      const { response, data } = await apiRequest(
-        `${API}/service-requests`,
-        {
-          headers: { Authorization: `Bearer ${authToken}` },
-        }
-      );
+      const r = await api("/service-requests");
+      setRequests(Array.isArray(r) ? r : r.requests || []);
 
-      if (!response.ok) {
-        setMessage(data.message || `Could not load requests (${response.status}).`);
-        return false;
+            const e = await api("/estimates");
+      setEstimates(Array.isArray(e) ? e : e.estimates || []);
+      const w = await api("/work-orders");
+setWorkOrders(
+  Array.isArray(w) ? w : w.workOrders || []
+);
+
+      if (role === "admin") {
+        const t = await api("/technicians");
+        setTechnicians(Array.isArray(t) ? t : t.technicians || []);
       }
 
-      const list = Array.isArray(data)
-        ? data
-        : Array.isArray(data.requests)
-          ? data.requests
-          : [];
-
-      setRequests(list);
-      return true;
-    } catch (error) {
-      console.error("Load requests error:", error);
-      setMessage("Could not connect to backend while loading requests.");
-      return false;
-    }
-  }
-
-  async function loadTechnicians(authToken = token()) {
-    if (!authToken) return false;
-
-    try {
-      const { response, data } = await apiRequest(`${API}/technicians`, {
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
-
-      if (!response.ok) {
-        setMessage(data.message || `Could not load technicians (${response.status}).`);
-        return false;
+      if (role === "technician") {
+        const a = await api("/technicians/my-assignments");
+        setAssignments(Array.isArray(a) ? a : a.assignments || []);
       }
-
-      setTechnicians(
-        Array.isArray(data)
-          ? data
-          : Array.isArray(data.technicians)
-            ? data.technicians
-            : []
-      );
-      return true;
-    } catch (error) {
-      console.error("Load technicians error:", error);
-      setMessage("Could not connect to backend while loading technicians.");
-      return false;
+    } catch (e) {
+      setMessage(e.message);
     }
   }
 
-  async function handleLogin(e) {
+  async function submitAuth(e, register = false) {
     e.preventDefault();
     setLoading(true);
     setMessage("");
 
     try {
-      const { response, data } = await apiRequest(`${API}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password }),
-      });
+      const data = await api(
+        register ? "/auth/register" : "/auth/login",
+        {
+          method: "POST",
+          headers: {},
+          body: JSON.stringify(
+            register
+              ? { name, email, phone, password, address, role: "customer" }
+              : { email, password }
+          ),
+        }
+      );
 
-      if (!response.ok) {
-        setMessage(data.message || `Login failed (${response.status}).`);
-        return;
-      }
-
-      if (!data.token || !data.user) {
-        setMessage("Login response is missing user information.");
-        console.error("Unexpected login response:", data);
+      if (register) {
+        setMessage("Registration successful. Please login.");
+        setPage("login");
+        setPassword("");
         return;
       }
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
-      setCurrentUser(data.user);
-      setPassword("");
-
-      if (data.user.role === "admin") {
-        setPage("admin-dashboard");
-      } else if (data.user.role === "technician") {
-        setPage("technician-dashboard");
-      } else {
-        setPage("dashboard");
-      }
-
-      await loadRequests(data.token);
-
-      if (data.user.role === "admin") {
-        await loadTechnicians(data.token);
-      }
-    } catch (error) {
-      console.error("Login error:", error);
-      setMessage(
-        "Cannot connect to backend. Check that the backend is running on port 5000."
+      setUser(data.user);
+      setPage(
+        data.user.role === "admin"
+          ? "admin"
+          : data.user.role === "technician"
+            ? "technician"
+            : "customer"
       );
+      await refresh(data.user.role);
+    } catch (e) {
+      setMessage(e.message);
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleRegister(e) {
+  async function submitService(e) {
     e.preventDefault();
     setLoading(true);
     setMessage("");
 
     try {
-      const { response, data } = await apiRequest(`${API}/auth/register`, {
+      await api("/service-requests", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
-          password,
-          address: address.trim(),
-          role: "customer",
-        }),
-      });
-
-      if (!response.ok) {
-        setMessage(data.message || `Registration failed (${response.status}).`);
-        return;
-      }
-
-      setMessage("Registration successful! Please login.");
-      setPage("login");
-      setPassword("");
-      setName("");
-      setPhone("");
-      setAddress("");
-    } catch (error) {
-      console.error("Registration error:", error);
-      setMessage("Cannot connect to backend. Check that the backend is running.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleServiceRequest(e) {
-    e.preventDefault();
-    setLoading(true);
-    setMessage("");
-
-    try {
-      const { response, data } = await apiRequest(`${API}/service-requests`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token()}`,
-        },
         body: JSON.stringify({
           serviceType,
-          description: description.trim(),
-          address: serviceAddress.trim(),
-          preferredDate: preferredDate || undefined,
-          preferredTime: preferredTime || undefined,
+          description,
+          address,
         }),
       });
 
-      if (!response.ok) {
-        setMessage(data.message || `Request failed (${response.status}).`);
-        return;
-      }
-
-      setMessage(data.message || "Service request submitted successfully!");
       setDescription("");
-      setPreferredDate("");
-      setPreferredTime("");
-      setServiceAddress("");
-      await loadRequests();
-    } catch (error) {
-      console.error("Service request error:", error);
-      setMessage("Could not connect to backend.");
+      setMessage("Service request submitted successfully!");
+      await refresh();
+    } catch (e) {
+      setMessage(e.message);
     } finally {
       setLoading(false);
     }
   }
 
-  async function updateRequestStatus(requestId, status) {
-    const authToken = token();
-    if (!authToken) {
-      setMessage("Please login again.");
+  async function updateStatus(id, status) {
+    try {
+      await api(`/service-requests/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ status }),
+      });
+      setMessage("Status updated.");
+      await refresh();
+    } catch (e) {
+      setMessage(e.message);
+    }
+  }
+
+  async function createEstimate(id) {
+    const laborCost = Number(labor[id]);
+    const partsCost = Number(parts[id]);
+
+    if (
+      labor[id] === undefined ||
+      labor[id] === "" ||
+      parts[id] === undefined ||
+      parts[id] === "" ||
+      !Number.isFinite(laborCost) ||
+      !Number.isFinite(partsCost) ||
+      laborCost < 0 ||
+      partsCost < 0
+    ) {
+      setMessage("Enter valid labor and parts costs.");
       return;
     }
 
-    setUpdatingRequestId(requestId);
-    setMessage("");
-
     try {
-      const { response, data } = await apiRequest(
-        `${API}/service-requests/${requestId}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${authToken}`,
-          },
-          body: JSON.stringify({ status }),
-        }
+      const data = await api("/estimates", {
+        method: "POST",
+        body: JSON.stringify({
+          serviceRequest: id,
+          inspectionNotes: notes[id] || "",
+          laborCost,
+          partsCost,
+        }),
+      });
+      setMessage(data.message || "Estimate created successfully.");
+    } catch (e) {
+      setMessage(e.message);
+    }
+  }
+  
+  async function respondToEstimate(id, status) {
+    try {
+      const data = await api(`/estimates/${id}/respond`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+
+      setMessage(data.message || `Estimate ${status} successfully.`);
+
+      const updatedEstimates = await api("/estimates");
+      setEstimates(
+        Array.isArray(updatedEstimates)
+          ? updatedEstimates
+          : updatedEstimates.estimates || []
       );
 
-      if (!response.ok) {
-        setMessage(data.message || `Status update failed (${response.status}).`);
-        return;
-      }
-
-      setMessage(data.message || "Request status updated.");
-      await loadRequests(authToken);
-    } catch (error) {
-      console.error("Status update error:", error);
-      setMessage("Could not connect to backend.");
-    } finally {
-      setUpdatingRequestId("");
+      const updatedRequests = await api("/service-requests");
+      setRequests(
+        Array.isArray(updatedRequests)
+          ? updatedRequests
+          : updatedRequests.requests || []
+      );
+    } catch (e) {
+      setMessage(e.message);
     }
   }
 
-  async function refreshDashboard() {
-    setLoading(true);
-    setMessage("");
-
-    try {
-      const requestsLoaded = await loadRequests();
-      let techniciansLoaded = true;
-
-      if (currentUser?.role === "admin") {
-        techniciansLoaded = await loadTechnicians();
-      }
-
-      if (requestsLoaded && techniciansLoaded) {
-        setMessage("Dashboard refreshed successfully.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function logout() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    setCurrentUser(null);
+    setUser(null);
     setRequests([]);
+    setAssignments([]);
     setTechnicians([]);
-    setEmail("");
-    setPassword("");
     setPage("home");
-    setMessage("You have logged out.");
+    setMessage("Logged out successfully.");
   }
 
-  function RequestCard({ request, showStatusEditor = false }) {
+  function requestCard(r, admin = false) {
     return (
-      <div className="history-row" key={request._id}>
-        <p><strong>Service:</strong> {request.serviceType}</p>
-        <p><strong>Description:</strong> {request.description}</p>
-        <p><strong>Customer:</strong> {request.customer?.name || "Customer"}</p>
-        <p><strong>Phone:</strong> {request.customer?.phone || "Not available"}</p>
-        <p><strong>Address:</strong> {request.address}</p>
-        <p><strong>Preferred Date:</strong> {request.preferredDate ? String(request.preferredDate).slice(0, 10) : "Not specified"}</p>
-        <p><strong>Technician:</strong> {request.assignedTechnician?.name || "Not assigned yet"}</p>
-        <p><strong>Status:</strong> {request.status}</p>
+      <article className="history-row" key={r._id}>
+        <h3>{r.serviceType} Service</h3>
+        <p><b>Description:</b> {r.description}</p>
+        <p><b>Customer:</b> {r.customer?.name || "Customer"}</p>
+        <p><b>Phone:</b> {r.customer?.phone || "Not available"}</p>
+        <p><b>Address:</b> {r.address}</p>
+        <p><b>Status:</b> {r.status}</p>
+        <p><b>Technician:</b> {r.assignedTechnician?.name || "Not assigned"}</p>
 
-        {showStatusEditor && (
+        {admin && (
           <>
-            <label htmlFor={`status-${request._id}`}>Update Status</label>
+            <label>Status</label>
             <select
-              id={`status-${request._id}`}
-              value={request.status}
-              disabled={Boolean(updatingRequestId)}
-              onChange={(e) => updateRequestStatus(request._id, e.target.value)}
+              value={r.status}
+              onChange={(e) => updateStatus(r._id, e.target.value)}
             >
-              <option value="pending">Pending</option>
-              <option value="assigned">Assigned</option>
-              <option value="inspection">Inspection</option>
-              <option value="approved">Approved</option>
-              <option value="in-progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
+              {["pending", "assigned", "inspection", "approved",
+                "in-progress", "completed", "cancelled"].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
             </select>
-            {updatingRequestId === request._id && <p>Updating status...</p>}
           </>
         )}
-      </div>
+      </article>
     );
   }
 
@@ -351,201 +262,401 @@ function App() {
       <header className="header">
         <div className="logo">⚡ E&P Service</div>
         <nav className="nav">
-          <button type="button" onClick={() => goToPage("home")}>Home</button>
-          {!currentUser && (
+          <button onClick={() => setPage("home")}>Home</button>
+          {!user ? (
             <>
-              <button type="button" onClick={() => goToPage("login")}>Login</button>
-              <button type="button" onClick={() => goToPage("register")}>Register</button>
+              <button onClick={() => setPage("login")}>Login</button>
+              <button onClick={() => setPage("register")}>Register</button>
             </>
-          )}
-          {currentUser && (
-            <button type="button" onClick={logout}>Logout</button>
+          ) : (
+            <button onClick={logout}>Logout</button>
           )}
         </nav>
       </header>
 
+      {message && <p className="app-message" role="status">{message}</p>}
+
       {page === "home" && (
         <main>
-          <section className="hero" id="home">
+          <section className="hero">
             <div className="hero-content">
               <span className="hero-tag">PROFESSIONAL HOME SERVICES</span>
               <h1>Electrical & Plumbing Services at Your Doorstep</h1>
-              <p>Reliable home services from trusted professionals. Book your electrical or plumbing service easily.</p>
-              <button className="hero-button" type="button" onClick={() => goToPage("register")}>Get Started</button>
-            </div>
-            <div className="hero-card">
-              <div className="hero-card-icon">🏠</div>
-              <h3>Trusted Home Service</h3>
-              <p>Professional technicians and reliable service for your home.</p>
+              <p>Book trusted technicians for your home service needs.</p>
+              <button
+                className="hero-button"
+                onClick={() => setPage(user ? "customer" : "register")}
+              >
+                Get Started
+              </button>
             </div>
           </section>
 
-          <section className="services" id="services">
+          <section className="services">
             <div className="section-heading">
-              <span>WHAT WE OFFER</span>
               <h2>Our Services</h2>
-              <p>Complete home service solutions for your needs.</p>
+              <p>Reliable home maintenance solutions.</p>
             </div>
             <div className="service-grid">
-              <div className="service-card">
-                <div className="service-icon">⚡</div>
+              <article className="service-card">
                 <h3>Electrical Services</h3>
-                <p>Wiring, switch repair, fan installation and maintenance.</p>
-              </div>
-              <div className="service-card">
-                <div className="service-icon">🔧</div>
+                <p>Wiring, switches, fans and electrical repairs.</p>
+              </article>
+              <article className="service-card">
                 <h3>Plumbing Services</h3>
-                <p>Tap repair, pipe repair, leakage fixing and more.</p>
-              </div>
-              <div className="service-card">
-                <div className="service-icon">🏠</div>
+                <p>Tap repair, pipes and leakage fixing.</p>
+              </article>
+              <article className="service-card">
                 <h3>Home Maintenance</h3>
-                <p>Reliable maintenance services for your home.</p>
-              </div>
+                <p>Professional service for your home.</p>
+              </article>
             </div>
           </section>
         </main>
       )}
 
-      {page === "login" && (
+      {(page === "login" || page === "register") && (
         <section className="form-page">
-          <form className="auth-form" onSubmit={handleLogin}>
-            <h1>Login</h1>
-            <p>Customers, technicians and admins can login here.</p>
-            <label htmlFor="login-email">Email</label>
-            <input id="login-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
-            <label htmlFor="login-password">Password</label>
-            <input id="login-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
-            <button type="submit" disabled={loading}>{loading ? "Please wait..." : "Login"}</button>
-            {message && <p role="status">{message}</p>}
-            <p>Don't have an account? <button type="button" onClick={() => goToPage("register")}>Register</button></p>
+          <form
+            className="auth-form"
+            onSubmit={(e) => submitAuth(e, page === "register")}
+          >
+            <h1>{page === "login" ? "Login" : "Create Account"}</h1>
+
+            {page === "register" && (
+              <>
+                <label>Full Name</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} required />
+                <label>Phone</label>
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} required />
+                <label>Address</label>
+                <input value={address} onChange={(e) => setAddress(e.target.value)} required />
+              </>
+            )}
+
+            <label>Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <label>Password</label>
+            <input
+              type="password"
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button disabled={loading}>
+              {loading ? "Please wait..." : page === "login" ? "Login" : "Register"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage(page === "login" ? "register" : "login")}
+            >
+              {page === "login" ? "Create Account" : "Back to Login"}
+            </button>
           </form>
         </section>
       )}
 
-      {page === "register" && (
-        <section className="form-page">
-          <form className="auth-form" onSubmit={handleRegister}>
-            <h1>Create Customer Account</h1>
-            <label htmlFor="register-name">Full Name</label>
-            <input id="register-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required />
-            <label htmlFor="register-email">Email</label>
-            <input id="register-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
-            <label htmlFor="register-phone">Phone</label>
-            <input id="register-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" required />
-            <label htmlFor="register-password">Password</label>
-            <input id="register-password" type="password" minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required />
-            <label htmlFor="register-address">Address</label>
-            <input id="register-address" value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="street-address" required />
-            <button type="submit" disabled={loading}>{loading ? "Please wait..." : "Register"}</button>
-            {message && <p role="status">{message}</p>}
-            <p>Already registered? <button type="button" onClick={() => goToPage("login")}>Login</button></p>
-          </form>
-        </section>
-      )}
-
-      {page === "dashboard" && (
+      {page === "customer" && user?.role === "customer" && (
         <main className="customer-dashboard">
-          <div className="customer-topbar">
-            <div><span className="dashboard-label">CUSTOMER PORTAL</span><h1>Customer Dashboard</h1><p>Welcome, {currentUser?.name || "Customer"}!</p></div>
-            <button className="logout-button" type="button" onClick={logout}>Logout</button>
+          <h1>Customer Dashboard</h1>
+          <p>Welcome, {user.name}</p>
+
+          <div className="summary-grid">
+            <div className="summary-card">
+              <span>My Requests</span>
+              <strong>{requests.length}</strong>
+            </div>
+            <div className="summary-card">
+              <span>Active</span>
+              <strong>{requests.filter((r) => !["completed", "cancelled"].includes(r.status)).length}</strong>
+            </div>
+            <div className="summary-card">
+              <span>Completed</span>
+              <strong>{requests.filter((r) => r.status === "completed").length}</strong>
+            </div>
           </div>
-          <div className="dashboard-body">
-            <div className="summary-grid">
-              <div className="summary-card"><span>📋 My Requests</span><strong>{requests.length}</strong></div>
-              <div className="summary-card"><span>🔧 Active Requests</span><strong>{requests.filter((r) => !["completed", "cancelled"].includes(r.status)).length}</strong></div>
-              <div className="summary-card"><span>✅ Completed</span><strong>{requests.filter((r) => r.status === "completed").length}</strong></div>
-            </div>
-            <div className="dashboard-main-grid">
-              <div className="dashboard-panel">
-                <h2>Request Service</h2>
-                <form className="request-form" onSubmit={handleServiceRequest}>
-                  <label htmlFor="service-type">Service Type</label>
-                  <select id="service-type" value={serviceType} onChange={(e) => setServiceType(e.target.value)}>
-                    <option value="electrical">Electrical</option>
-                    <option value="plumbing">Plumbing</option>
-                  </select>
-                  <label htmlFor="service-description">Description</label>
-                  <textarea id="service-description" rows="4" value={description} onChange={(e) => setDescription(e.target.value)} required />
-                  <label htmlFor="preferred-date">Preferred Date</label>
-                  <input id="preferred-date" type="date" value={preferredDate} onChange={(e) => setPreferredDate(e.target.value)} />
-                  <label htmlFor="preferred-time">Preferred Time</label>
-                  <input id="preferred-time" type="time" value={preferredTime} onChange={(e) => setPreferredTime(e.target.value)} />
-                  <label htmlFor="service-address">Service Address</label>
-                  <input id="service-address" value={serviceAddress} onChange={(e) => setServiceAddress(e.target.value)} required />
-                  <button type="submit" disabled={loading}>{loading ? "Submitting..." : "Submit Service Request"}</button>
-                </form>
-                {message && <p role="status">{message}</p>}
-              </div>
-              <div className="dashboard-panel">
-                <h2>Service History</h2>
-                {requests.length === 0 ? <p>No service requests found.</p> : requests.map((request) => <RequestCard key={request._id} request={request} />)}
-              </div>
-            </div>
+
+          <div className="dashboard-panel">
+            <h2>Request Service</h2>
+            <form className="request-form" onSubmit={submitService}>
+              <label>Service Type</label>
+              <select value={serviceType} onChange={(e) => setServiceType(e.target.value)}>
+                <option value="electrical">Electrical</option>
+                <option value="plumbing">Plumbing</option>
+              </select>
+              <label>Description</label>
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} required />
+              <label>Service Address</label>
+              <input value={address} onChange={(e) => setAddress(e.target.value)} required />
+              <button disabled={loading}>Submit Request</button>
+            </form>
+          </div>
+
+          <div className="dashboard-panel">
+            <h2>My Estimates</h2>
+
+            {estimates.filter((est) => {
+              const requestId =
+                typeof est.serviceRequest === "object"
+                  ? est.serviceRequest?._id
+                  : est.serviceRequest;
+
+              return requests.some((r) => r._id === requestId);
+            }).length === 0 ? (
+              <p>No estimates available yet.</p>
+            ) : (
+              estimates
+                .filter((est) => {
+                  const requestId =
+                    typeof est.serviceRequest === "object"
+                      ? est.serviceRequest?._id
+                      : est.serviceRequest;
+
+                  return requests.some((r) => r._id === requestId);
+                })
+                .map((est) => (
+                  <article className="history-row" key={est._id}>
+                    <h3>Estimate</h3>
+
+                    <p>
+                      <b>Inspection:</b> {est.inspectionNotes}
+                    </p>
+
+                    <p>
+                      <b>Labor Cost:</b> ₹{est.laborCost}
+                    </p>
+
+                    <p>
+                      <b>Parts Cost:</b> ₹{est.partsCost}
+                    </p>
+
+                    <p>
+                      <b>Total Cost:</b> ₹{est.totalCost}
+                    </p>
+
+                    <p>
+                      <b>Status:</b> {est.status}
+                    </p>
+
+                    {est.status === "pending" && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            respondToEstimate(est._id, "approved")
+                          }
+                        >
+                          Approve
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            respondToEstimate(est._id, "rejected")
+                          }
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
+                  </article>
+                ))
+            )}
+          </div>
+
+<div className="dashboard-panel">
+  <h2>My Work Orders</h2>
+
+  {workOrders.filter((wo) => {
+    const requestId =
+      typeof wo.serviceRequest === "object"
+        ? wo.serviceRequest?._id
+        : wo.serviceRequest;
+
+    return requests.some((r) => r._id === requestId);
+  }).length === 0 ? (
+    <p>No work orders available yet.</p>
+  ) : (
+    workOrders
+      .filter((wo) => {
+        const requestId =
+          typeof wo.serviceRequest === "object"
+            ? wo.serviceRequest?._id
+            : wo.serviceRequest;
+
+        return requests.some((r) => r._id === requestId);
+      })
+      .map((wo) => (
+        <article className="history-row" key={wo._id}>
+          <h3>Work Order</h3>
+          <p><b>Description:</b> {wo.description}</p>
+          <p><b>Status:</b> {wo.status}</p>
+          <p>
+            <b>Scheduled Date:</b>{" "}
+            {wo.scheduledDate
+              ? new Date(wo.scheduledDate).toLocaleDateString()
+              : "Not scheduled"}
+          </p>
+          <p>
+            <b>Completion Notes:</b>{" "}
+            {wo.completionNotes || "No notes yet"}
+          </p>
+        </article>
+      ))
+  )}
+</div>
+
+          <div className="dashboard-panel">
+            <h2>My Service History</h2>
+            {requests.length ? requests.map((r) => requestCard(r)) : <p>No requests yet.</p>}
           </div>
         </main>
       )}
 
-      {page === "admin-dashboard" && (
+      {page === "admin" && user?.role === "admin" && (
         <main className="customer-dashboard">
-          <div className="customer-topbar">
-            <div><span className="dashboard-label">ADMIN PORTAL</span><h1>Admin Dashboard</h1><p>Welcome, {currentUser?.name || "Admin"}!</p></div>
-            <button className="logout-button" type="button" onClick={logout}>Logout</button>
+          <h1>Admin Dashboard</h1>
+          <div className="summary-grid">
+            <div className="summary-card"><span>Total Requests</span><strong>{requests.length}</strong></div>
+            <div className="summary-card"><span>Pending</span><strong>{requests.filter((r) => r.status === "pending").length}</strong></div>
+            <div className="summary-card"><span>Technicians</span><strong>{technicians.length}</strong></div>
           </div>
-          <div className="dashboard-body">
-            <div className="summary-grid">
-              <div className="summary-card"><span>📋 Total Requests</span><strong>{requests.length}</strong></div>
-              <div className="summary-card"><span>⏳ Pending Requests</span><strong>{requests.filter((r) => r.status === "pending").length}</strong></div>
-              <div className="summary-card"><span>✅ Completed</span><strong>{requests.filter((r) => r.status === "completed").length}</strong></div>
-              <div className="summary-card"><span>🔧 Technicians</span><strong>{technicians.length}</strong></div>
-            </div>
-            <div className="dashboard-panel">
-              <h2>Service Request Management</h2>
-              <button type="button" disabled={loading} onClick={refreshDashboard}>{loading ? "Refreshing..." : "Refresh Dashboard"}</button>
-              {message && <p role="status">{message}</p>}
-              {requests.length === 0 ? <p>No service requests found.</p> : requests.map((request) => <RequestCard key={request._id} request={request} showStatusEditor />)}
-            </div>
-            <div className="dashboard-panel">
-              <h2>Technician Management</h2>
-              {technicians.length === 0 ? <p>No technicians found.</p> : technicians.map((tech) => (
-                <div className="history-row" key={tech._id}>
-                  <p><strong>Name:</strong> {tech.user?.name || "Not available"}</p>
-                  <p><strong>Email:</strong> {tech.user?.email || "Not available"}</p>
-                  <p><strong>Phone:</strong> {tech.user?.phone || "Not available"}</p>
-                  <p><strong>Skills:</strong> {Array.isArray(tech.skills) ? tech.skills.join(", ") : "Not specified"}</p>
-                  <p><strong>Service Area:</strong> {tech.serviceArea || "Not specified"}</p>
-                  <p><strong>Availability:</strong> {tech.availability || "Not specified"}</p>
-                  <p><strong>Experience:</strong> {tech.experience ?? 0} years</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <button onClick={() => refresh("admin")}>Refresh Dashboard</button>
+          <h2>Service Requests</h2>
+          {requests.map((r) => requestCard(r, true))}
+          <h2>Technicians</h2>
+          {technicians.map((t) => (
+            <article className="history-row" key={t._id}>
+              <p><b>Name:</b> {t.user?.name || t.name || "Technician"}</p>
+              <p><b>Email:</b> {t.user?.email || t.email || "Not available"}</p>
+              <p><b>Skills:</b> {t.skills?.join?.(", ") || "Not specified"}</p>
+            </article>
+          ))}
         </main>
       )}
 
-      {page === "technician-dashboard" && (
+      {page === "technician" && user?.role === "technician" && (
         <main className="customer-dashboard">
-          <div className="customer-topbar">
-            <div><span className="dashboard-label">TECHNICIAN PORTAL</span><h1>Technician Dashboard</h1><p>Welcome, {currentUser?.name || "Technician"}!</p></div>
-            <button className="logout-button" type="button" onClick={logout}>Logout</button>
+          <h1>Technician Dashboard</h1>
+          <p>Welcome, {user.name}</p>
+          <div className="summary-grid">
+            <div className="summary-card"><span>Assigned Jobs</span><strong>{assignments.length}</strong></div>
+            <div className="summary-card"><span>Completed</span><strong>{assignments.filter((a) => a.serviceRequest?.status === "completed" || a.status === "completed").length}</strong></div>
           </div>
-          <div className="dashboard-body">
-            <div className="summary-grid">
-              <div className="summary-card"><span>📋 Requests</span><strong>{requests.length}</strong></div>
-              <div className="summary-card"><span>🔧 In Progress</span><strong>{requests.filter((r) => r.status === "in-progress").length}</strong></div>
-              <div className="summary-card"><span>✅ Completed</span><strong>{requests.filter((r) => r.status === "completed").length}</strong></div>
-            </div>
-            <div className="dashboard-panel">
-              <h2>Service Requests</h2>
-              <button type="button" disabled={loading} onClick={refreshDashboard}>{loading ? "Refreshing..." : "Refresh Requests"}</button>
-              {message && <p role="status">{message}</p>}
-              {requests.length === 0 ? <p>No service requests found.</p> : requests.map((request) => <RequestCard key={request._id} request={request} showStatusEditor />)}
-            </div>
-          </div>
+          <button onClick={() => refresh("technician")}>Refresh Jobs</button>
+
+          {assignments.map((a) => {
+            const r = typeof a.serviceRequest === "object" ? a.serviceRequest : null;
+            if (!r) return <article className="history-row" key={a._id}>Job details unavailable.</article>;
+
+            return (
+              <article className="history-row" key={a._id}>
+                <h3>{r.serviceType} Job</h3>
+                <p><b>Customer:</b> {r.customer?.name || "Customer"}</p>
+                <p><b>Phone:</b> {r.customer?.phone || "Not available"}</p>
+                <p><b>Description:</b> {r.description}</p>
+                <p><b>Address:</b> {r.address}</p>
+                <p><b>Status:</b> {r.status}</p>
+
+                <label>Update Status</label>
+                <select value={r.status} onChange={(e) => updateStatus(r._id, e.target.value)}>
+                  {["assigned", "inspection", "approved", "in-progress", "completed"].map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+
+                <h3>Inspection & Estimate</h3>
+                <label>Inspection Notes</label>
+                <textarea
+                  rows="3"
+                  value={notes[r._id] || ""}
+                  onChange={(e) => setNotes({ ...notes, [r._id]: e.target.value })}
+                  placeholder="Enter inspection notes"
+                />
+                <label>Labor Cost (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={labor[r._id] ?? ""}
+                  onChange={(e) => setLabor({ ...labor, [r._id]: e.target.value })}
+                />
+                <label>Parts Cost (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={parts[r._id] ?? ""}
+                  onChange={(e) => setParts({ ...parts, [r._id]: e.target.value })}
+                />
+                <p><b>Total Estimate: ₹{(Number(labor[r._id] || 0) + Number(parts[r._id] || 0)).toFixed(2)}</b></p>
+                
+<button
+  type="button"
+  onClick={() => {
+    alert("Create Estimate button clicked!");
+    createEstimate(r._id);
+  }}
+>
+  Create Estimate
+</button>
+<button
+  type="button"
+  onClick={async () => {
+    try {
+      const approvedEstimate = estimates.find((est) => {
+        const requestId =
+          typeof est.serviceRequest === "object"
+            ? est.serviceRequest?._id
+            : est.serviceRequest;
+
+        return requestId === r._id && est.status === "approved";
+      });
+
+      if (!approvedEstimate) {
+        setMessage("No approved estimate found for this job.");
+        return;
+      }
+      console.log(
+  "ALL ESTIMATES:",
+  estimates.map((est) => ({
+    id: est._id,
+    serviceRequest: est.serviceRequest,
+    status: est.status,
+  }))
+);
+console.log("CURRENT JOB ID:", r._id);
+
+      const result = await api("/work-orders", {
+        method: "POST",
+        body: JSON.stringify({
+          estimateId: approvedEstimate._id,
+        }),
+      });
+
+      setMessage(result.message || "Work Order created successfully.");
+
+      const w = await api("/work-orders");
+      setWorkOrders(
+        Array.isArray(w) ? w : w.workOrders || []
+      );
+    } catch (e) {
+      setMessage(e.message);
+    }
+  }}
+>
+  Create Work Order
+</button>
+              </article>
+            );
+          })}
         </main>
       )}
     </div>
   );
-}
+}  
 
-export default App;

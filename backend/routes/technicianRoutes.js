@@ -1,8 +1,10 @@
+
 const express = require("express");
 
 const {
   createTechnician,
-  getTechnicians
+  getTechnicians,
+  getMyAssignments
 } = require("../controllers/technicianController");
 
 const protect = require("../middleware/authMiddleware");
@@ -14,5 +16,8 @@ router.post("/", protect, createTechnician);
 
 // Get All Technicians
 router.get("/", protect, getTechnicians);
+
+// Get Jobs Assigned to Logged-in Technician
+router.get("/my-assignments", protect, getMyAssignments);
 
 module.exports = router;
