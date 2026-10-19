@@ -1,89 +1,219 @@
-
 const Technician = require("../models/Technician");
 const Assignment = require("../models/Assignment");
+const User = require("../models/User");
+const bcrypt = require("bcryptjs");
 
-// Create Technician
+// Create Technician User and Profile (Admin only)
 const createTechnician = async (req, res) => {
-  try {
-    const {
-      user,
-      skills,
-      serviceArea,
-      availability,
-      experience
-    } = req.body;
+  let createdUserId = null;
 
-    if (!user || !skills || !serviceArea) {
-      return res.status(400).json({
-        message: "Please fill all required fields"
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Only admin can create technicians",
       });
     }
 
-    const technician = await Technician.create({
-      user,
+    const {
+      name,
+      email,
+      phone,
+      password,
       skills,
       serviceArea,
-      availability: availability || "available",
-      experience: experience || 0
+      availability,
+      experience,
+    } = req.body;
+
+    if (
+      !name?.trim() ||
+      !email?.trim() ||
+      !phone?.trim() ||
+      !password ||
+      !Array.isArray(skills) ||
+      skills.length === 0 ||
+      !serviceArea?.trim()
+    ) {
+      return res.status(400).json({
+        message: "Please fill all required fields",
+      });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const existingUser = await User.findOne({
+      email: normalizedEmail,
     });
 
-    res.status(201).json({
-      message: "Technician created successfully",
-      technician
+    if (existingUser) {
+      return res.status(409).json({
+        message: "This email already exists. Use a different email.",
+      });
+    }
+
+    if (
+      availability !== undefined &&
+      !["available", "unavailable"].includes(availability)
+    ) {
+      return res.status(400).json({
+        message: "Invalid availability value",
+      });
+    }
+
+    const cleanSkills = skills
+      .filter((skill) => typeof skill === "string")
+      .map((skill) => skill.trim())
+      .filter(Boolean);
+
+    if (cleanSkills.length === 0) {
+      return res.status(400).json({
+        message: "Enter at least one valid skill",
+      });
+    }
+
+    const parsedExperience = Number(experience ?? 0);
+
+    if (
+      !Number.isFinite(parsedExperience) ||
+      parsedExperience < 0
+    ) {
+      return res.status(400).json({
+        message: "Experience must be a valid non-negative number",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await User.create({
+      name: name.trim(),
+      email: normalizedEmail,
+      phone: phone.trim(),
+      password: hashedPassword,
+      role: "technician",
+      address: serviceArea.trim(),
+    });
+
+    createdUserId = user._id;
+
+    const technician = await Technician.create({
+      user: user._id,
+      skills: cleanSkills,
+      serviceArea: serviceArea.trim(),
+      availability: availability || "available",
+      experience: parsedExperience,
+    });
+
+    return res.status(201).json({
+      message: "Technician account and profile created successfully",
+      technician: {
+        _id: technician._id,
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+        },
+        skills: technician.skills,
+        serviceArea: technician.serviceArea,
+        availability: technician.availability,
+        experience: technician.experience,
+      },
     });
   } catch (error) {
-    res.status(500).json({
+    // If profile creation fails after user creation, clean up
+    // only the newly created user from this request.
+    if (createdUserId) {
+      try {
+        await User.findByIdAndDelete(createdUserId);
+      } catch (cleanupError) {
+        console.error(
+          "Could not clean up incomplete technician user:",
+          cleanupError.message
+        );
+      }
+    }
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        message: "This email already exists. Use a different email.",
+      });
+    }
+
+    console.error("Create technician error:", error.message);
+
+    return res.status(500).json({
       message: "Failed to create technician",
-      error: error.message
+      error: error.message,
     });
   }
 };
 
-// Get All Technicians
+// Get All Technicians (Admin only)
 const getTechnicians = async (req, res) => {
   try {
+    if (req.user.role !== "admin") {
+      return res.status(403).json({
+        message: "Only admin can view all technicians",
+      });
+    }
+
     const technicians = await Technician.find()
       .populate("user", "name email phone role")
       .sort({ createdAt: -1 });
 
-    res.json(technicians);
+    return res.json(technicians);
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       message: "Failed to fetch technicians",
-      error: error.message
+      error: error.message,
     });
   }
 };
 
-// Get Active Jobs Assigned to Logged-in Technician
+// Get jobs assigned to the logged-in technician
 const getMyAssignments = async (req, res) => {
   try {
+    if (req.user.role !== "technician") {
+      return res.status(403).json({
+        message: "Only technicians can view their assigned jobs",
+      });
+    }
+
     const assignments = await Assignment.find({
       technician: req.user.id,
-      status: { $nin: ["completed", "cancelled"] }
+      status: { $ne: "cancelled" },
     })
       .populate({
         path: "serviceRequest",
-        match: { status: { $nin: ["completed", "cancelled"] } },
+        match: { status: { $ne: "cancelled" } },
         populate: {
           path: "customer",
-          select: "name email phone"
-        }
+          select: "name email phone",
+        },
       })
       .sort({ scheduledDate: 1 });
 
-    const activeAssignments = assignments.filter(
+    const technicianAssignments = assignments.filter(
       (assignment) => assignment.serviceRequest !== null
     );
 
-    res.json({
-      count: activeAssignments.length,
-      assignments: activeAssignments
+    return res.json({
+      count: technicianAssignments.length,
+      assignments: technicianAssignments,
     });
   } catch (error) {
-    res.status(500).json({
+    console.error("Failed to fetch assigned jobs:", error.message);
+
+    return res.status(500).json({
       message: "Failed to fetch assigned jobs",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -91,5 +221,5 @@ const getMyAssignments = async (req, res) => {
 module.exports = {
   createTechnician,
   getTechnicians,
-  getMyAssignments
+  getMyAssignments,
 };

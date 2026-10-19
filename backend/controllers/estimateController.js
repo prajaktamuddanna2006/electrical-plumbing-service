@@ -67,16 +67,17 @@ const createEstimate = async (req, res) => {
       });
     }
 
-    const existingEstimate = await Estimate.findOne({
-      serviceRequest,
-      status: "pending",
-    });
 
-    if (existingEstimate) {
-      return res.status(409).json({
-        message: "A pending estimate already exists for this request",
-      });
-    }
+const existingEstimate = await Estimate.findOne({
+  serviceRequest,
+});
+
+if (existingEstimate) {
+  return res.status(409).json({
+    message: "An estimate already exists for this request",
+  });
+}
+
 
     const estimate = await Estimate.create({
       serviceRequest,

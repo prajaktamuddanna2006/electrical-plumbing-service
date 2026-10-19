@@ -1,3 +1,4 @@
+
 const Assignment = require("../models/Assignment");
 const ServiceRequest = require("../models/ServiceRequest");
 const Technician = require("../models/Technician");
@@ -59,6 +60,19 @@ const createAssignment = async (req, res) => {
     if (["completed", "cancelled"].includes(request.status)) {
       return res.status(400).json({
         message: "Cannot assign a completed or cancelled request",
+      });
+    }
+
+    // Prevent duplicate active assignments for the same service request
+    const existingAssignment = await Assignment.findOne({
+      serviceRequest: request._id,
+      status: { $nin: ["completed", "cancelled"] },
+    });
+
+    if (existingAssignment) {
+      return res.status(409).json({
+        message: "This service request already has an active assignment.",
+        assignment: existingAssignment,
       });
     }
 

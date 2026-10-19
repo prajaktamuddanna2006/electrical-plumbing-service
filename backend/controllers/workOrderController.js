@@ -2,6 +2,7 @@
 const WorkOrder = require("../models/WorkOrder");
 const Estimate = require("../models/Estimate");
 const ServiceRequest = require("../models/ServiceRequest");
+const Assignment = require("../models/Assignment");
 
 async function createWorkOrder(req, res) {
   try {
@@ -33,17 +34,6 @@ async function createWorkOrder(req, res) {
       });
     }
 
-    const existing = await WorkOrder.findOne({
-      estimate: estimate._id,
-    });
-
-    if (existing) {
-      return res.status(409).json({
-        message: "Work order already exists for this estimate.",
-        workOrder: existing,
-      });
-    }
-
     const request = await ServiceRequest.findById(
       estimate.serviceRequest
     );
@@ -54,18 +44,108 @@ async function createWorkOrder(req, res) {
       });
     }
 
+    if (
+      req.user.role === "technician" &&
+      (
+        !request.assignedTechnician ||
+        String(request.assignedTechnician) !== String(req.user.id) ||
+        String(estimate.technician) !== String(req.user.id)
+      )
+    ) {
+      return res.status(403).json({
+        message:
+          "You can create work orders only for your assigned estimates.",
+      });
+    }
+
     const technicianId =
       req.user.role === "technician"
         ? req.user.id
-        : estimate.technician;
+        : estimate.technician || request.assignedTechnician;
+
+    if (!technicianId) {
+      return res.status(400).json({
+        message: "No technician is assigned to this work order.",
+      });
+    }
+
+    let requestedDate = null;
+
+    if (scheduledDate) {
+      requestedDate = new Date(scheduledDate);
+
+      if (Number.isNaN(requestedDate.getTime())) {
+        return res.status(400).json({
+          message: "Invalid scheduled date.",
+        });
+      }
+    }
+
+    const assignment = await Assignment.findOne({
+      serviceRequest: request._id,
+      technician: technicianId,
+      status: { $ne: "cancelled" },
+    }).sort({ createdAt: -1 });
+
+    const finalScheduledDate =
+      requestedDate || assignment?.scheduledDate || null;
+
+    // Keep the existing work order and fill missing details.
+    const existing = await WorkOrder.findOne({
+      estimate: estimate._id,
+    });
+
+    if (existing) {
+      let changed = false;
+
+      if (!existing.scheduledDate && finalScheduledDate) {
+        existing.scheduledDate = finalScheduledDate;
+        changed = true;
+      }
+
+      // Sync an advanced service-request status to a pending
+      // work order without resetting an existing work order.
+      const advancedStatuses = [
+        "in-progress",
+        "completed",
+        "cancelled",
+      ];
+
+      if (
+        existing.status === "pending" &&
+        advancedStatuses.includes(request.status)
+      ) {
+        existing.status = request.status;
+        changed = true;
+      }
+
+      if (changed) {
+        await existing.save();
+      }
+
+      return res.status(200).json({
+        message: changed
+          ? "Existing work order updated successfully."
+          : "Work order already exists for this estimate.",
+        workOrder: existing,
+      });
+    }
+
+    const initialStatus = [
+      "in-progress",
+      "completed",
+      "cancelled",
+    ].includes(request.status)
+      ? request.status
+      : "pending";
 
     const workOrder = await WorkOrder.create({
       serviceRequest: request._id,
       estimate: estimate._id,
       technician: technicianId,
       description: request.description,
-      scheduledDate: scheduledDate || null,
-      status: "pending",
+      scheduledDate: finalScheduledDate,
+      status: initialStatus,
     });
 
     return res.status(201).json({
@@ -83,7 +163,7 @@ async function createWorkOrder(req, res) {
 
 async function getWorkOrders(req, res) {
   try {
-    let filter = {};
+    const filter = {};
 
     if (req.user.role === "technician") {
       filter.technician = req.user.id;
@@ -141,6 +221,7 @@ async function updateWorkOrderStatus(req, res) {
     }
 
     const isAdmin = req.user.role === "admin";
+
     const isAssignedTechnician =
       req.user.role === "technician" &&
       String(workOrder.technician) === String(req.user.id);
