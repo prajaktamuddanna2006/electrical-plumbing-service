@@ -1,16 +1,43 @@
+
 {
-  "name": "desktop",
+  "name": "e-and-p-service",
+  "productName": "E&P Service",
   "version": "1.0.0",
-  "description": "",
+  "description": "Electrical & Plumbing Home Service",
   "main": "main.js",
   "scripts": {
-  "start": "electron ."
-},
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "electron": "^44.5.1"
+    "electron": "^44.5.1",
+    "png-to-ico": "^3.0.2",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.epservice.desktop",
+    "productName": "E&P Service",
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "E&P Service"
+    },
+    "extraResources": [
+      {
+        "from": "../frontend/dist",
+        "to": "frontend-dist"
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    }
   }
 }

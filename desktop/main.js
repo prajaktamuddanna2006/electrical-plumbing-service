@@ -1,5 +1,5 @@
-
 const { app, BrowserWindow } = require("electron");
+const path = require("path");
 
 let mainWindow;
 
@@ -11,6 +11,9 @@ function createWindow() {
     height: 800,
     show: true,
     autoHideMenuBar: true,
+
+    icon: path.join(__dirname, "icon.ico"),
+
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -38,9 +41,13 @@ function createWindow() {
     }
   );
 
-  mainWindow.loadURL("http://localhost:5176/").catch((error) => {
-    console.error("Unable to load frontend:", error.message);
-  });
+  const frontendPath = app.isPackaged
+  ? path.join(process.resourcesPath, "frontend-dist", "index.html")
+  : path.join(__dirname, "..", "frontend", "dist", "index.html");
+
+mainWindow.loadFile(frontendPath).catch((error) => {
+  console.error("Unable to load frontend:", error.message);
+});
 }
 
 app.whenReady().then(createWindow);

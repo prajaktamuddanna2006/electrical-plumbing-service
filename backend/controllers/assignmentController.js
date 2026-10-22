@@ -1,10 +1,8 @@
-
 const Assignment = require("../models/Assignment");
 const ServiceRequest = require("../models/ServiceRequest");
 const Technician = require("../models/Technician");
-const User = require("../models/User");
+const User = require("../models/User")
 
-// Create Assignment (Admin only)
 const createAssignment = async (req, res) => {
   try {
     if (req.user.role !== "admin") {
@@ -63,7 +61,6 @@ const createAssignment = async (req, res) => {
       });
     }
 
-    // Prevent duplicate active assignments for the same service request
     const existingAssignment = await Assignment.findOne({
       serviceRequest: request._id,
       status: { $nin: ["completed", "cancelled"] },
@@ -127,7 +124,6 @@ const createAssignment = async (req, res) => {
   }
 };
 
-// Get All Assignments
 const getAssignments = async (req, res) => {
   try {
     if (!["admin", "technician"].includes(req.user.role)) {

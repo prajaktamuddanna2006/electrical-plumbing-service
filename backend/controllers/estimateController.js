@@ -1,8 +1,6 @@
-
 const Estimate = require("../models/Estimate");
 const ServiceRequest = require("../models/ServiceRequest");
 
-// Create Estimate (Technician only)
 const createEstimate = async (req, res) => {
   try {
     if (req.user.role !== "technician") {
@@ -78,7 +76,6 @@ if (existingEstimate) {
   });
 }
 
-
     const estimate = await Estimate.create({
       serviceRequest,
       technician: req.user.id,
@@ -101,7 +98,6 @@ if (existingEstimate) {
   }
 };
 
-// Get Estimates
 const getEstimates = async (req, res) => {
   try {
     let query = {};
@@ -137,7 +133,6 @@ const getEstimates = async (req, res) => {
   }
 };
 
-// Approve or Reject Estimate (Customer only)
 const respondToEstimate = async (req, res) => {
   try {
     if (req.user.role !== "customer") {

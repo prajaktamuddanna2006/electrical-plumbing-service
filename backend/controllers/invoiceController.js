@@ -1,4 +1,3 @@
-
 const Invoice = require("../models/Invoice");
 const WorkOrder = require("../models/WorkOrder");
 const Estimate = require("../models/Estimate");
@@ -145,8 +144,6 @@ async function getInvoices(req, res) {
     });
   }
 }
-
-
 async function recordPayment(req, res) {
   try {
     const { paymentMethod } = req.body;

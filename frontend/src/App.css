@@ -1,9 +1,4 @@
 
-/* =========================================
-   ELECTRICAL & PLUMBING SERVICE APP
-   COMPLETE RESPONSIVE CSS
-========================================= */
-
 * {
   box-sizing: border-box;
 }
@@ -40,8 +35,6 @@ button:disabled {
 .app {
   min-height: 100vh;
 }
-
-/* HEADER */
 
 .header {
   min-height: 72px;
@@ -83,8 +76,6 @@ button:disabled {
   background: #174ea6;
   color: #fff;
 }
-
-/* HOME PAGE */
 
 .hero {
   min-height: 460px;
@@ -136,8 +127,6 @@ button:disabled {
   background: #123d83;
   transform: translateY(-2px);
 }
-
-/* SERVICES */
 
 .services {
   padding: 70px 6%;
@@ -192,8 +181,6 @@ button:disabled {
   box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
   transform: translateY(-3px);
 }
-
-/* LOGIN AND REGISTER */
 
 .form-page {
   min-height: calc(100vh - 72px);
@@ -261,8 +248,6 @@ button:disabled {
   border: 1px solid #bfdbfe;
 }
 
-/* GENERAL DASHBOARD */
-
 .customer-dashboard {
   min-height: 100vh;
   max-width: 1250px;
@@ -300,8 +285,6 @@ button:disabled {
   background: #123d83;
 }
 
-/* SUMMARY CARDS */
-
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -331,8 +314,6 @@ button:disabled {
   color: #174ea6;
   font-size: 30px;
 }
-
-/* CUSTOMER REQUEST FORM */
 
 .request-form {
   display: flex;
@@ -380,8 +361,6 @@ button:disabled {
   background: #123d83;
 }
 
-/* DASHBOARD PANELS */
-
 .dashboard-panel {
   margin: 24px 0;
   padding: 26px;
@@ -396,8 +375,6 @@ button:disabled {
   color: #173b70;
   font-size: 23px;
 }
-
-/* SERVICE HISTORY AND ADMIN CARDS */
 
 .history-row {
   min-width: 0;
@@ -465,10 +442,6 @@ button:disabled {
   background: #123d83;
 }
 
-/* =========================================
-   TECHNICIAN JOB CARD LAYOUT
-========================================= */
-
 .customer-dashboard > .history-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -526,7 +499,6 @@ button:disabled {
   resize: vertical;
 }
 
-/* Inspection and Estimate heading */
 .customer-dashboard > .history-row > h3:nth-of-type(2) {
   grid-column: 1 / -1;
   margin-top: 18px;
@@ -534,7 +506,6 @@ button:disabled {
   border-top: 1px solid #e5e7eb;
 }
 
-/* Total estimate */
 .customer-dashboard > .history-row > p:last-of-type {
   padding: 14px;
   background: #eff6ff;
@@ -544,7 +515,6 @@ button:disabled {
   font-weight: 700;
 }
 
-/* Create Estimate button */
 .customer-dashboard > .history-row > button {
   grid-column: 1 / -1;
   width: 100%;
@@ -562,18 +532,12 @@ button:disabled {
   background: #123d83;
 }
 
-/* FORM FOCUS */
-
 input:focus,
 select:focus,
 textarea:focus {
   border-color: #2563eb;
   outline: 2px solid #dbeafe;
 }
-
-/* =========================================
-   RESPONSIVE DESIGN
-========================================= */
 
 @media (max-width: 900px) {
   .hero {
@@ -758,14 +722,11 @@ textarea:focus {
   border-color: #155eef;
 }
 
-
-
 .customer-dashboard .history-row h3:nth-of-type(2) {
   margin-top: 12px;
   padding-top: 22px;
   color: #153e75;
 }
-
 
 .customer-dashboard .history-row p:has(+ button) {
   padding: 15px;
@@ -1080,7 +1041,6 @@ textarea:focus {
   }
 }
 
-/* HOME PAGE HERO IMAGE FIX */
 .hero {
   position: relative;
   display: flex;
@@ -1148,9 +1108,6 @@ textarea:focus {
   }
 }
 
-
-/* ===== ADMIN DASHBOARD AND TECHNICIAN FORM FIX ===== */
-
 .customer-dashboard {
   width: 100%;
   max-width: 1400px;
@@ -1164,7 +1121,6 @@ textarea:focus {
   margin: 12px 0 24px;
 }
 
-/* Dashboard summary cards */
 .customer-dashboard .summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1180,7 +1136,6 @@ textarea:focus {
   border-radius: 12px;
 }
 
-/* Add New Technician form */
 .technician-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1244,7 +1199,6 @@ textarea:focus {
   background: #1047bd;
 }
 
-/* Correct E&P Service heading */
 .logo {
   color: #174ea6;
   font-size: 23px;
@@ -1253,14 +1207,12 @@ textarea:focus {
   overflow-wrap: anywhere;
 }
 
-/* Keep dashboard sections spaced properly */
 .customer-dashboard > h2 {
   margin-top: 32px;
   margin-bottom: 18px;
   color: #173b70;
 }
 
-/* Tablet and mobile layout */
 @media (max-width: 700px) {
   .customer-dashboard {
     padding: 22px 14px 40px;
@@ -1284,8 +1236,6 @@ textarea:focus {
     font-size: 19px;
   }
 }
-
-/* ===== Professional Admin Dashboard ===== */
 
 .admin-dashboard {
   max-width: 1200px;
@@ -1482,8 +1432,6 @@ textarea:focus {
   }
 }
 
-/* FINAL ADMIN DASHBOARD LAYOUT FIX */
-
 .admin-dashboard {
   width: min(1180px, 94%);
   margin: 30px auto;
@@ -1534,7 +1482,6 @@ textarea:focus {
   margin: 0 0 24px;
 }
 
-/* FIX: Add New Technician Form */
 .admin-dashboard .dashboard-panel .service-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1662,10 +1609,8 @@ textarea:focus {
   }
 }
 
-/* ADMIN CSS TEST */
 .admin-dashboard { outline: 5px solid red !important; }
 
-/* FIX: Admin Dashboard layout */
 .admin-dashboard .dashboard-panel {
   width: 100%;
   box-sizing: border-box;
@@ -1676,7 +1621,6 @@ textarea:focus {
   box-shadow: 0 3px 14px rgba(0, 0, 0, 0.08);
 }
 
-/* Technician form: neat two-column layout */
 .admin-dashboard .dashboard-panel .service-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

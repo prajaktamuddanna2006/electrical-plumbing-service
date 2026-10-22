@@ -1,7 +1,4 @@
-
 const ServiceRequest = require("../models/ServiceRequest");
-
-// Create Service Request
 const createServiceRequest = async (req, res) => {
   try {
     const { serviceType, description, address, preferredDate } = req.body;
@@ -49,7 +46,6 @@ const createServiceRequest = async (req, res) => {
   }
 };
 
-// Get Service Requests
 const getServiceRequests = async (req, res) => {
   try {
     if (!req.user || !req.user.id) {
@@ -82,7 +78,6 @@ const getServiceRequests = async (req, res) => {
   }
 };
 
-// Update Service Request Status
 const updateServiceRequestStatus = async (req, res) => {
   try {
     if (!req.user || !req.user.id) {

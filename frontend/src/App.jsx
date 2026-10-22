@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import "./App.css";
 
@@ -740,7 +739,7 @@ export default function App() {
                 .map((inv) => (
                   <article className="history-row" key={inv._id}>
                     <h3>Invoice: {inv.invoiceNumber}</h3>
-                    <p><b>Amount:</b> ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¹{Number(inv.totalAmount || 0).toFixed(2)}</p>
+                    <p><b>Amount:</b> ₹{Number(inv.totalAmount || 0).toFixed(2)}</p>
                     <p><b>Payment Status:</b> {inv.paymentStatus}</p>
                     {inv.paymentStatus === "paid" ? (
                       <>
@@ -1096,7 +1095,7 @@ export default function App() {
 
                 {existingInvoice && (
                   <p>
-                    <b>Invoice:</b> {existingInvoice.invoiceNumber} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¹{existingInvoice.totalAmount} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â {existingInvoice.paymentStatus}
+                    <b>Invoice:</b> {existingInvoice.invoiceNumber} — ₹{Number(existingInvoice.totalAmount || 0).toFixed(2)} — {existingInvoice.paymentStatus}
                   </p>
                 )}
               </article>

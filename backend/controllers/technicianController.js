@@ -3,7 +3,6 @@ const Assignment = require("../models/Assignment");
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 
-// Create Technician User and Profile (Admin only)
 const createTechnician = async (req, res) => {
   let createdUserId = null;
 
@@ -127,8 +126,7 @@ const createTechnician = async (req, res) => {
       },
     });
   } catch (error) {
-    // If profile creation fails after user creation, clean up
-    // only the newly created user from this request.
+
     if (createdUserId) {
       try {
         await User.findByIdAndDelete(createdUserId);
@@ -155,7 +153,6 @@ const createTechnician = async (req, res) => {
   }
 };
 
-// Get All Technicians (Admin only)
 const getTechnicians = async (req, res) => {
   try {
     if (req.user.role !== "admin") {
@@ -177,7 +174,6 @@ const getTechnicians = async (req, res) => {
   }
 };
 
-// Get jobs assigned to the logged-in technician
 const getMyAssignments = async (req, res) => {
   try {
     if (req.user.role !== "technician") {

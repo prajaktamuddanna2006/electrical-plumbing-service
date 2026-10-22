@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-
 const technicianSchema = new mongoose.Schema(
   {
     user: {

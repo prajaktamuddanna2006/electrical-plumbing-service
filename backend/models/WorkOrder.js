@@ -1,6 +1,4 @@
-
 const mongoose = require("mongoose");
-
 const workOrderSchema = new mongoose.Schema(
   {
     serviceRequest: {

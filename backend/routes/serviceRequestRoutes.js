@@ -12,13 +12,10 @@ const router = express.Router();
 
 console.log("SERVICE REQUEST ROUTES LOADED");
 
-// Create Service Request
 router.post("/", protect, createServiceRequest);
 
-// Get Service Requests
 router.get("/", protect, getServiceRequests);
 
-// Update Service Request Status
 router.put("/:id", protect, updateServiceRequestStatus);
 
 module.exports = router;

@@ -7,10 +7,8 @@ const {
 
 const router = express.Router();
 
-// Add Customer
 router.post("/", addCustomer);
 
-// Get All Customers
 router.get("/", getCustomers);
 
 module.exports = router;

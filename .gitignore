@@ -1,6 +1,30 @@
+# Dependencies and generated files
 node_modules/
-.env
 dist/
 .vite/
 
-backend/reset-technician-password.js
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Backup and recovery files
+**/*backup*
+**/*before*
+**/*recovery*
+**/*safe*
+
+# Temporary password reset and database maintenance scripts
+backend/reset-*.js
+backend/cleanup-*.js
+backend/create-admin.js
+
+# Temporary database backup data
+backend/*backup*.json
+
+# Exclude unwanted root README
+/README.md

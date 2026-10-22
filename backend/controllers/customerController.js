@@ -1,6 +1,5 @@
 const Customer = require("../models/Customer");
 
-// Add Customer
 const addCustomer = async (req, res) => {
   console.log("ADD CUSTOMER API CALLED");
 
@@ -32,7 +31,6 @@ const addCustomer = async (req, res) => {
   }
 };
 
-// Get All Customers
 const getCustomers = async (req, res) => {
   try {
     const customers = await Customer.find();

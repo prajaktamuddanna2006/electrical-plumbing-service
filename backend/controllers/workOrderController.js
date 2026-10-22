@@ -1,4 +1,3 @@
-
 const WorkOrder = require("../models/WorkOrder");
 const Estimate = require("../models/Estimate");
 const ServiceRequest = require("../models/ServiceRequest");
@@ -90,7 +89,6 @@ async function createWorkOrder(req, res) {
     const finalScheduledDate =
       requestedDate || assignment?.scheduledDate || null;
 
-    // Keep the existing work order and fill missing details.
     const existing = await WorkOrder.findOne({
       estimate: estimate._id,
     });
@@ -103,8 +101,6 @@ async function createWorkOrder(req, res) {
         changed = true;
       }
 
-      // Sync an advanced service-request status to a pending
-      // work order without resetting an existing work order.
       const advancedStatuses = [
         "in-progress",
         "completed",
